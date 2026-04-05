@@ -39,34 +39,44 @@
             </tr>
           </thead>
           <tbody>
-            <tr class="bg-success/10">
-              <td colspan="14" class="font-bold text-success text-lg sticky left-0 bg-success/10 z-10">
+            <tr class="bg-success/10 cursor-pointer select-none" @click="incomeCollapsed = !incomeCollapsed">
+              <td class="font-bold text-success text-lg sticky left-0 bg-success/10 z-10">
+                <span>{{ incomeCollapsed ? '▶' : '▼' }}</span>
                 REVENUS
-                <button class="btn btn-ghost btn-xs ml-2" @click="openAddLineModal(true)">+</button>
+                <button class="btn btn-ghost btn-xs ml-2" @click.stop="openAddLineModal(true)">+</button>
               </td>
+              <template v-if="incomeCollapsed">
+                <td v-for="m in 12" :key="m" class="text-center font-semibold text-success">{{ formatAmount(getMonthIncome(m)) }}</td>
+                <td class="text-center font-bold text-success">{{ formatAmount(totalIncomeYear) }}</td>
+              </template>
+              <template v-else>
+                <td colspan="13"></td>
+              </template>
             </tr>
-            <tr v-for="line in incomeLines" :key="line.id" class="hover">
-              <td class="sticky left-0 bg-base-100 z-10">
-                <div class="flex items-center gap-1">
-                  <span class="text-success">{{ line.categoryEmoji }}</span>
-                  <span>{{ line.name }}</span>
-                  <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100" @click="deleteLine(line)">x</button>
-                </div>
-              </td>
-              <td v-for="m in 12" :key="m" class="text-center p-0">
-                <input type="number" :value="getCellValue(line.id, m)"
-                  class="input input-ghost input-sm w-full text-center text-success"
-                  step="0.01" min="0"
-                  @change="(e: Event) => onCellChange(line, m, e)"
-                  @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
-              </td>
-              <td class="text-center font-semibold text-success">{{ formatAmount(getLineTotal(line.id)) }}</td>
-            </tr>
-            <tr class="border-t-2 border-success/30 bg-success/5">
-              <td class="font-bold text-success sticky left-0 bg-success/5 z-10">Total revenus</td>
-              <td v-for="m in 12" :key="m" class="text-center font-semibold text-success">{{ formatAmount(getMonthIncome(m)) }}</td>
-              <td class="text-center font-bold text-success">{{ formatAmount(totalIncomeYear) }}</td>
-            </tr>
+            <template v-if="!incomeCollapsed">
+              <tr v-for="line in incomeLines" :key="line.id" class="hover">
+                <td class="sticky left-0 bg-base-100 z-10">
+                  <div class="flex items-center gap-1">
+                    <span class="text-success">{{ line.categoryEmoji }}</span>
+                    <span>{{ line.name }}</span>
+                    <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100" @click="deleteLine(line)">x</button>
+                  </div>
+                </td>
+                <td v-for="m in 12" :key="m" class="text-center p-0">
+                  <input type="number" :value="getCellValue(line.id, m)"
+                    class="input input-ghost input-sm w-full text-center text-success"
+                    step="0.01" min="0"
+                    @change="(e: Event) => onCellChange(line, m, e)"
+                    @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
+                </td>
+                <td class="text-center font-semibold text-success">{{ formatAmount(getLineTotal(line.id)) }}</td>
+              </tr>
+              <tr class="border-t-2 border-success/30 bg-success/5">
+                <td class="font-bold text-success sticky left-0 bg-success/5 z-10">Total revenus</td>
+                <td v-for="m in 12" :key="m" class="text-center font-semibold text-success">{{ formatAmount(getMonthIncome(m)) }}</td>
+                <td class="text-center font-bold text-success">{{ formatAmount(totalIncomeYear) }}</td>
+              </tr>
+            </template>
             <tr><td colspan="14" class="h-2 p-0"></td></tr>
             <tr class="bg-error/10">
               <td colspan="14" class="font-bold text-error text-lg sticky left-0 bg-error/10 z-10">
@@ -212,6 +222,7 @@ const loadingData = ref(true)
 const familyName = ref('')
 const categories = ref<any[]>([])
 const currentMonthEl = ref<HTMLElement | null>(null)
+const incomeCollapsed = ref(true)
 
 interface LineDefinition {
   id: string
