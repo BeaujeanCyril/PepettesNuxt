@@ -377,6 +377,8 @@ const onCellChange = async (lineDef: LineDefinition, month: number, event: Event
     }) as any
     lineDef.amounts[month] = { lineId: created.id, amount: created.amount }
   }
+  // Force reactivity update
+  lineDefinitions.value = [...lineDefinitions.value]
 }
 
 const addLineModal = ref<HTMLDialogElement>()
@@ -431,67 +433,53 @@ const createCategory = async () => {
 
 const addLine = async () => {
   if (!newLineName.value) return
-  const category = categories.value.find((c: any) => c.id === newLineCategoryId.value)
-  const key = newLineName.value + '__' + String(addingIncome.value)
   const amount = Math.abs(newLineAmount.value || 0)
 
-  // Determine which months to fill
-  let monthsToFill: number[] = []
   if (newLineRecurrence.value === 'none') {
-    monthsToFill = [currentMonth]
-  } else if (newLineRecurrence.value === 'yearly') {
-    monthsToFill = [currentMonth]
+    // Ponctuel: create a single line for current month
+    let budgetMonthId = monthMap.value[currentMonth]
+    if (!budgetMonthId) {
+      const bm = await $fetch('/api/family/' + code + '/month', {
+        method: 'POST',
+        body: { year: selectedYear.value, month: currentMonth }
+      }) as any
+      budgetMonthId = bm.id
+      monthMap.value[currentMonth] = bm.id
+    }
+    await $fetch('/api/family/' + code + '/lines/add', {
+      method: 'POST',
+      body: {
+        budgetMonthId,
+        name: newLineName.value,
+        amount: amount || 0,
+        isIncome: addingIncome.value,
+        categoryId: newLineCategoryId.value
+      }
+    })
   } else {
-    // monthly: from X to Y
-    const from = newLineFromMonth.value
-    const to = newLineToMonth.value
-    for (let m = from; m <= to; m++) monthsToFill.push(m)
-  }
+    // Recurring (monthly or yearly): create via backend
+    const startMonth = newLineRecurrence.value === 'monthly' ? newLineFromMonth.value : currentMonth
+    const endMonth = newLineRecurrence.value === 'monthly' ? newLineToMonth.value : currentMonth
+    const endYear = newLineRecurrence.value === 'yearly' ? null : null // ongoing
 
-  // Create or find the line definition
-  let lineDef = lineDefinitions.value.find(l => l.id === key)
-  if (!lineDef) {
-    lineDef = {
-      id: key,
-      name: newLineName.value,
-      isIncome: addingIncome.value,
-      categoryId: newLineCategoryId.value,
-      categoryEmoji: category?.emoji || '',
-      amounts: {}
-    }
-    lineDefinitions.value.push(lineDef)
-  }
-
-  // Create budget lines in DB for each month if amount > 0
-  if (amount > 0) {
-    for (const m of monthsToFill) {
-      let budgetMonthId = monthMap.value[m]
-      if (!budgetMonthId) {
-        const bm = await $fetch('/api/family/' + code + '/month', {
-          method: 'POST',
-          body: { year: selectedYear.value, month: m }
-        }) as any
-        budgetMonthId = bm.id
-        monthMap.value[m] = bm.id
+    await $fetch('/api/family/' + code + '/recurring/add', {
+      method: 'POST',
+      body: {
+        name: newLineName.value,
+        amount: amount || 0,
+        isIncome: addingIncome.value,
+        categoryId: newLineCategoryId.value,
+        startMonth,
+        startYear: selectedYear.value,
+        endMonth: null,  // ongoing until stopped
+        endYear: null
       }
-
-      if (!lineDef.amounts[m]) {
-        const created = await $fetch('/api/family/' + code + '/lines/add', {
-          method: 'POST',
-          body: {
-            budgetMonthId,
-            name: newLineName.value,
-            amount,
-            isIncome: addingIncome.value,
-            categoryId: newLineCategoryId.value
-          }
-        }) as any
-        lineDef.amounts[m] = { lineId: created.id, amount: created.amount }
-      }
-    }
+    })
   }
 
   closeAddLineModal()
+  // Reload data to show materialized lines
+  await fetchData()
 }
 
 const deleteLine = async (lineDef: LineDefinition) => {

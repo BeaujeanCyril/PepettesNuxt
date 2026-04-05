@@ -15,8 +15,9 @@ model Family {
   name       String
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
-  months     BudgetMonth[]
-  categories Category[]
+  months         BudgetMonth[]
+  categories     Category[]
+  recurringLines RecurringLine[]
 
   @@schema("pepettes")
 }
@@ -51,13 +52,33 @@ model BudgetLine {
 }
 
 model Category {
-  id       Int          @id @default(autoincrement())
-  name     String
-  emoji    String       @default("📁")
-  familyId Int
-  family   Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  lines    BudgetLine[]
+  id              Int              @id @default(autoincrement())
+  name            String
+  emoji           String           @default("📁")
+  familyId        Int
+  family          Family           @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  lines           BudgetLine[]
+  recurringLines  RecurringLine[]
 
   @@unique([name, familyId])
+  @@schema("pepettes")
+}
+
+model RecurringLine {
+  id         Int       @id @default(autoincrement())
+  name       String
+  amount     Float
+  isIncome   Boolean   @default(false)
+  categoryId Int?
+  category   Category? @relation(fields: [categoryId], references: [id])
+  familyId   Int
+  family     Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  startMonth Int       // 1-12
+  startYear  Int
+  endMonth   Int?      // null = ongoing
+  endYear    Int?      // null = ongoing
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
   @@schema("pepettes")
 }
