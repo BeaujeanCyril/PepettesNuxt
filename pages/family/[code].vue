@@ -158,39 +158,23 @@
                 {{ formatAmount(totalBalanceVisible) }}
               </td>
             </tr>
-            <tr class="bg-base-200/50">
-              <td class="font-semibold sticky left-0 bg-base-200/50 z-10">
-                REPORT PRECEDENT
-                <span class="text-xs font-normal opacity-50 block">Editable</span>
-              </td>
-              <td v-for="m in visibleMonths" :key="m" class="text-center p-0">
-                <input type="number"
-                  :value="getCarryOver(m) || ''"
-                  class="input input-ghost input-sm w-full text-center"
-                  :class="getCarryOver(m) >= 0 ? 'text-success' : 'text-error'"
-                  step="0.01"
-                  @change="(e: Event) => onManualReportChange(m, e)"
-                  @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
-              </td>
-              <td></td>
-            </tr>
             <tr class="bg-base-300 border-t-2">
               <td class="font-bold text-xl sticky left-0 bg-base-300 z-10">
-                SOLDE REEL
-                <span class="text-xs font-normal opacity-50 block">Editable (solde du compte)</span>
+                SOLDE COMPTE
+                <span class="text-xs font-normal opacity-50 block">Editable — base de projection</span>
               </td>
               <td v-for="m in visibleMonths" :key="m" class="text-center p-0">
                 <input type="number"
-                  :value="getMonthSolde(m) || ''"
+                  :value="getSoldeCompte(m) || ''"
                   class="input input-ghost input-sm w-full text-center font-bold text-xl"
-                  :class="getMonthSolde(m) >= 0 ? 'text-success' : 'text-error'"
+                  :class="getSoldeCompte(m) >= 0 ? 'text-success' : 'text-error'"
                   step="0.01"
-                  @change="(e: Event) => onManualSoldeChange(m, e)"
+                  @change="(e: Event) => onSoldeCompteChange(m, e)"
                   @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
               </td>
               <td class="text-center font-bold text-xl"
-                :class="getMonthSolde(visibleMonths[visibleMonths.length - 1]) >= 0 ? 'text-success' : 'text-error'">
-                {{ formatAmount(getMonthSolde(visibleMonths[visibleMonths.length - 1])) }}
+                :class="getSoldeCompte(visibleMonths[visibleMonths.length - 1]) >= 0 ? 'text-success' : 'text-error'">
+                {{ formatAmount(getSoldeCompte(visibleMonths[visibleMonths.length - 1])) }}
               </td>
             </tr>
           </tbody>
@@ -485,21 +469,10 @@ const togglePaid = async (lineDef: LineDefinition, month: number) => {
   lineDefinitions.value = [...lineDefinitions.value]
 }
 
-const onManualReportChange = async (month: number, event: Event) => {
+const onSoldeCompteChange = async (month: number, event: Event) => {
   const input = event.target as HTMLInputElement
   const val = input.value.trim()
-  const newVal = val === '' ? null : parseFloat(val)
-  manualReports.value = { ...manualReports.value, [month]: newVal }
-  await $fetch('/api/family/' + code + '/month-balance', {
-    method: 'PUT',
-    body: { year: selectedYear.value, month, manualReport: newVal }
-  })
-}
-
-const onManualSoldeChange = async (month: number, event: Event) => {
-  const input = event.target as HTMLInputElement
-  const val = input.value.trim()
-  const newVal = val === '' ? null : parseFloat(val)
+  const newVal = val === '' ? null : r2(parseFloat(val))
   manualSoldes.value = { ...manualSoldes.value, [month]: newVal }
   await $fetch('/api/family/' + code + '/month-balance', {
     method: 'PUT',
@@ -515,36 +488,12 @@ const getCategoryTotalVisible = (group: any): number => {
   return r2(visibleMonths.value.reduce((sum, m) => sum + getCategoryMonthTotal(group, m), 0))
 }
 
-const getCarryOver = (month: number): number => {
-  const manualR = manualReports.value[month]
-  if (manualR !== null && manualR !== undefined) return r2(manualR)
-  if (month <= 1) return 0
-  return r2(getMonthSolde(month - 1))
-}
-
-const getMonthSolde = (month: number): number => {
-  const manualS = manualSoldes.value[month]
-  if (manualS !== null && manualS !== undefined) return r2(manualS)
-  return r2(getCarryOver(month) + getMonthBalance(month))
-}
-
-const getCumulativeBalance = (month: number): number => {
-  return getMonthSolde(month)
-}
-
-const onManualBalanceChange = async (month: number, event: Event) => {
-  const input = event.target as HTMLInputElement
-  const val = input.value.trim()
-  const newBalance = val === '' ? null : parseFloat(val)
-
-  manualBalances.value[month] = newBalance
-  // Force reactivity
-  manualBalances.value = { ...manualBalances.value }
-
-  await $fetch('/api/family/' + code + '/month-balance', {
-    method: 'PUT',
-    body: { year: selectedYear.value, month, manualBalance: newBalance }
-  })
+// Solde compte: manual if set, otherwise projection from previous + balance
+const getSoldeCompte = (month: number): number => {
+  const manual = manualSoldes.value[month]
+  if (manual !== null && manual !== undefined) return r2(manual)
+  const prev = month <= 1 ? 0 : getSoldeCompte(month - 1)
+  return r2(prev + getMonthBalance(month))
 }
 
 const totalIncomeVisible = computed(() => {
