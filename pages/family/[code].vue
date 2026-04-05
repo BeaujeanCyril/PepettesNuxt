@@ -27,9 +27,9 @@
           <button class="btn btn-circle btn-sm" @click="changeYear(1)">&raquo;</button>
         </div>
         <div class="join">
-          <button class="btn btn-sm join-item" :class="viewMode === 'S1' ? 'btn-primary' : 'btn-ghost'" @click="viewMode = 'S1'">S1</button>
-          <button class="btn btn-sm join-item" :class="viewMode === 'S2' ? 'btn-primary' : 'btn-ghost'" @click="viewMode = 'S2'">S2</button>
-          <button class="btn btn-sm join-item" :class="viewMode === 'year' ? 'btn-primary' : 'btn-ghost'" @click="viewMode = 'year'">Annee</button>
+          <button class="btn btn-sm join-item" :class="viewMonths === 3 ? 'btn-primary' : 'btn-ghost'" @click="viewMonths = 3">3 mois</button>
+          <button class="btn btn-sm join-item" :class="viewMonths === 6 ? 'btn-primary' : 'btn-ghost'" @click="viewMonths = 6">6 mois</button>
+          <button class="btn btn-sm join-item" :class="viewMonths === (13 - currentMonth) ? 'btn-primary' : 'btn-ghost'" @click="viewMonths = 13 - currentMonth">Fin d'annee</button>
         </div>
       </div>
       <div ref="tableContainer" class="overflow-x-auto bg-base-100 rounded-xl shadow-lg">
@@ -37,10 +37,10 @@
           <thead>
             <tr class="bg-base-200">
               <th class="min-w-[200px] sticky left-0 bg-base-200 z-10">Libelle</th>
-              <th v-for="m in visibleMonths" :key="m" :ref="el => { if (m === currentMonth) currentMonthEl = el as HTMLElement }"
+              <th v-for="m in visibleMonths" :key="m"
                 class="text-center min-w-[100px]"
-                :class="m === currentMonth ? 'bg-primary/10 border-b-2 border-primary' : ''">
-                {{ monthNames[m - 1] }}{{ m === currentMonth ? ' ●' : '' }}
+                :class="m === currentMonth ? 'bg-primary/10' : ''">
+                {{ monthNames[m - 1] }}
               </th>
               <th class="text-center min-w-[110px] font-bold">TOTAL</th>
             </tr>
@@ -313,12 +313,15 @@ const currentMonth = new Date().getMonth() + 1
 const currentMonthEl = ref<HTMLElement | null>(null)
 const tableContainer = ref<HTMLElement | null>(null)
 const incomeCollapsed = ref(true)
-const viewMode = ref<'S1' | 'S2' | 'year'>(currentMonth <= 6 ? 'S1' : 'S2')
+const viewMonths = ref(6)
 
 const visibleMonths = computed(() => {
-  if (viewMode.value === 'S1') return [1, 2, 3, 4, 5, 6]
-  if (viewMode.value === 'S2') return [7, 8, 9, 10, 11, 12]
-  return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+  const months = []
+  for (let i = 0; i < viewMonths.value; i++) {
+    const m = currentMonth + i
+    if (m <= 12) months.push(m)
+  }
+  return months
 })
 
 interface LineDefinition {
@@ -513,7 +516,7 @@ const changeYear = (delta: number) => {
 
 const onCellChange = async (lineDef: LineDefinition, month: number, event: Event) => {
   const input = event.target as HTMLInputElement
-  const newAmount = Math.abs(parseFloat(input.value) || 0)
+  const newAmount = Math.round(Math.abs(parseFloat(input.value) || 0) * 100) / 100
 
   let budgetMonthId = monthMap.value[month]
   if (!budgetMonthId) {
@@ -760,15 +763,6 @@ onMounted(async () => {
   await initKeycloak()
   if (hasAccess.value) {
     await fetchData()
-    await nextTick()
-    if (currentMonthEl.value && tableContainer.value) {
-      // Scroll so current month is the first visible column (after the sticky label column)
-      const containerRect = tableContainer.value.getBoundingClientRect()
-      const monthRect = currentMonthEl.value.getBoundingClientRect()
-      const stickyColWidth = 200 // min-w-[200px] of the label column
-      const scrollLeft = monthRect.left - containerRect.left - stickyColWidth + tableContainer.value.scrollLeft
-      tableContainer.value.scrollTo({ left: Math.max(0, scrollLeft), behavior: 'smooth' })
-    }
   }
 })
 
