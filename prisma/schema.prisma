@@ -1,0 +1,63 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["pepettes"]
+}
+
+model Family {
+  id         Int           @id @default(autoincrement())
+  code       String        @unique
+  name       String
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  months     BudgetMonth[]
+  categories Category[]
+
+  @@schema("pepettes")
+}
+
+model BudgetMonth {
+  id        Int          @id @default(autoincrement())
+  year      Int
+  month     Int
+  familyId  Int
+  family    Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  lines     BudgetLine[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([year, month, familyId])
+  @@schema("pepettes")
+}
+
+model BudgetLine {
+  id            Int         @id @default(autoincrement())
+  name          String
+  amount        Float
+  isIncome      Boolean     @default(false)
+  categoryId    Int?
+  category      Category?   @relation(fields: [categoryId], references: [id])
+  budgetMonthId Int
+  budgetMonth   BudgetMonth @relation(fields: [budgetMonthId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@schema("pepettes")
+}
+
+model Category {
+  id       Int          @id @default(autoincrement())
+  name     String
+  emoji    String       @default("📁")
+  familyId Int
+  family   Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  lines    BudgetLine[]
+
+  @@unique([name, familyId])
+  @@schema("pepettes")
+}
