@@ -463,7 +463,7 @@ const sortByDay = ref(false)
 
 const expenseLinesByDay = computed(() => {
   const q = searchQuery.value.toLowerCase().trim()
-  let lines = expenseLines.value
+  let lines = expenseLines.value.filter(l => l.paymentMethod !== 'visa')
   if (q) {
     lines = lines.filter(l => {
       const nameMatch = l.name.toLowerCase().includes(q)
