@@ -74,7 +74,7 @@
                   </div>
                 </td>
                 <td v-for="m in visibleMonths" :key="m" class="text-center p-0">
-                  <input type="number" :value="getCellValue(line.id, m)"
+                  <input type="number" :value="getCellValue(line.id, m) || ''"
                     class="input input-ghost input-sm w-full text-center text-success"
                     step="0.01" min="0"
                     @change="(e: Event) => onCellChange(line, m, e)"
@@ -129,7 +129,7 @@
                         :checked="line.amounts[m]?.isPaid"
                         @change="togglePaid(line, m)"
                         title="Paye" />
-                      <input type="number" :value="getCellValue(line.id, m)"
+                      <input type="number" :value="getCellValue(line.id, m) || ''"
                         class="input input-ghost input-sm w-full text-center"
                         :class="line.amounts[m]?.isPaid ? 'text-error/40 line-through' : 'text-error'"
                         step="0.01" min="0"
