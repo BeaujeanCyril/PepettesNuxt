@@ -9,9 +9,14 @@ export default defineEventHandler(async (event) => {
   const family = await prisma.family.findUnique({ where: { code } })
   if (!family) throw createError({ statusCode: 404, statusMessage: 'Famille non trouvée' })
 
-  const { year, month, manualBalance } = body
+  const { year, month } = body
 
   if (!year || !month) throw createError({ statusCode: 400, statusMessage: 'year et month requis' })
+
+  const data: Record<string, any> = {}
+  if (body.manualBalance !== undefined) data.manualBalance = body.manualBalance ?? null
+  if (body.manualReport !== undefined) data.manualReport = body.manualReport ?? null
+  if (body.manualSolde !== undefined) data.manualSolde = body.manualSolde ?? null
 
   let budgetMonth = await prisma.budgetMonth.findUnique({
     where: { year_month_familyId: { year, month, familyId: family.id } }
@@ -19,12 +24,12 @@ export default defineEventHandler(async (event) => {
 
   if (!budgetMonth) {
     budgetMonth = await prisma.budgetMonth.create({
-      data: { year, month, familyId: family.id, manualBalance: manualBalance ?? null }
+      data: { year, month, familyId: family.id, ...data }
     })
   } else {
     budgetMonth = await prisma.budgetMonth.update({
       where: { id: budgetMonth.id },
-      data: { manualBalance: manualBalance ?? null }
+      data
     })
   }
 

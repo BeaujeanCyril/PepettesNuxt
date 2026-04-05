@@ -123,11 +123,19 @@
                     </div>
                   </td>
                   <td v-for="m in visibleMonths" :key="m" class="text-center p-0">
-                    <input type="number" :value="getCellValue(line.id, m)"
-                      class="input input-ghost input-sm w-full text-center text-error"
-                      step="0.01" min="0"
-                      @change="(e: Event) => onCellChange(line, m, e)"
-                      @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
+                    <div class="flex items-center gap-0">
+                      <input v-if="line.amounts[m]?.lineId" type="checkbox"
+                        class="checkbox checkbox-xs checkbox-success ml-1"
+                        :checked="line.amounts[m]?.isPaid"
+                        @change="togglePaid(line, m)"
+                        title="Paye" />
+                      <input type="number" :value="getCellValue(line.id, m)"
+                        class="input input-ghost input-sm w-full text-center"
+                        :class="line.amounts[m]?.isPaid ? 'text-error/40 line-through' : 'text-error'"
+                        step="0.01" min="0"
+                        @change="(e: Event) => onCellChange(line, m, e)"
+                        @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
+                    </div>
                   </td>
                   <td class="text-center font-semibold text-error">{{ formatAmount(getLineTotalVisible(line.id)) }}</td>
                 </tr>
@@ -151,31 +159,38 @@
               </td>
             </tr>
             <tr class="bg-base-200/50">
-              <td class="font-semibold sticky left-0 bg-base-200/50 z-10">REPORT PRECEDENT</td>
-              <td v-for="m in visibleMonths" :key="m" class="text-center"
-                :class="getCarryOver(m) >= 0 ? 'text-success' : 'text-error'">
-                {{ formatAmount(getCarryOver(m)) }}
+              <td class="font-semibold sticky left-0 bg-base-200/50 z-10">
+                REPORT PRECEDENT
+                <span class="text-xs font-normal opacity-50 block">Editable</span>
+              </td>
+              <td v-for="m in visibleMonths" :key="m" class="text-center p-0">
+                <input type="number"
+                  :value="getCarryOver(m) || ''"
+                  class="input input-ghost input-sm w-full text-center"
+                  :class="getCarryOver(m) >= 0 ? 'text-success' : 'text-error'"
+                  step="0.01"
+                  @change="(e: Event) => onManualReportChange(m, e)"
+                  @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
               </td>
               <td></td>
             </tr>
             <tr class="bg-base-300 border-t-2">
               <td class="font-bold text-xl sticky left-0 bg-base-300 z-10">
-                SOLDE CUMULE
-                <span class="text-xs font-normal opacity-50 block">Editable pour corriger</span>
+                SOLDE REEL
+                <span class="text-xs font-normal opacity-50 block">Editable (solde du compte)</span>
               </td>
               <td v-for="m in visibleMonths" :key="m" class="text-center p-0">
                 <input type="number"
-                  :value="getCumulativeBalance(m) || ''"
-                  :placeholder="formatAmount(getCarryOver(m) + getMonthBalance(m))"
+                  :value="getMonthSolde(m) || ''"
                   class="input input-ghost input-sm w-full text-center font-bold text-xl"
-                  :class="getCumulativeBalance(m) >= 0 ? 'text-success' : 'text-error'"
+                  :class="getMonthSolde(m) >= 0 ? 'text-success' : 'text-error'"
                   step="0.01"
-                  @change="(e: Event) => onManualBalanceChange(m, e)"
+                  @change="(e: Event) => onManualSoldeChange(m, e)"
                   @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
               </td>
               <td class="text-center font-bold text-xl"
-                :class="getCumulativeBalance(visibleMonths[visibleMonths.length - 1]) >= 0 ? 'text-success' : 'text-error'">
-                {{ formatAmount(getCumulativeBalance(visibleMonths[visibleMonths.length - 1])) }}
+                :class="getMonthSolde(visibleMonths[visibleMonths.length - 1]) >= 0 ? 'text-success' : 'text-error'">
+                {{ formatAmount(getMonthSolde(visibleMonths[visibleMonths.length - 1])) }}
               </td>
             </tr>
           </tbody>
@@ -370,7 +385,7 @@ interface LineDefinition {
   categoryId: number | null
   categoryEmoji: string
   paymentMethod: string | null
-  amounts: Record<number, { lineId: number; amount: number }>
+  amounts: Record<number, { lineId: number; amount: number; isPaid: boolean }>
 }
 
 const paymentMethods = [
@@ -384,6 +399,8 @@ const paymentMethods = [
 const lineDefinitions = ref<LineDefinition[]>([])
 const monthMap = ref<Record<number, number>>({})
 const manualBalances = ref<Record<number, number | null>>({})
+const manualReports = ref<Record<number, number | null>>({})
+const manualSoldes = ref<Record<number, number | null>>({})
 
 const incomeLines = computed(() => lineDefinitions.value.filter(l => l.isIncome))
 const expenseLines = computed(() => lineDefinitions.value.filter(l => !l.isIncome))
@@ -464,20 +481,59 @@ const getMonthBalance = (month: number): number => {
   return getMonthIncome(month) - getMonthExpense(month)
 }
 
+const togglePaid = async (lineDef: LineDefinition, month: number) => {
+  const entry = lineDef.amounts[month]
+  if (!entry) return
+  const newPaid = !entry.isPaid
+  await $fetch('/api/family/' + code + '/lines/' + entry.lineId, {
+    method: 'PUT',
+    body: { isPaid: newPaid }
+  })
+  entry.isPaid = newPaid
+  lineDefinitions.value = [...lineDefinitions.value]
+}
+
+const onManualReportChange = async (month: number, event: Event) => {
+  const input = event.target as HTMLInputElement
+  const val = input.value.trim()
+  const newVal = val === '' ? null : parseFloat(val)
+  manualReports.value = { ...manualReports.value, [month]: newVal }
+  await $fetch('/api/family/' + code + '/month-balance', {
+    method: 'PUT',
+    body: { year: selectedYear.value, month, manualReport: newVal }
+  })
+}
+
+const onManualSoldeChange = async (month: number, event: Event) => {
+  const input = event.target as HTMLInputElement
+  const val = input.value.trim()
+  const newVal = val === '' ? null : parseFloat(val)
+  manualSoldes.value = { ...manualSoldes.value, [month]: newVal }
+  await $fetch('/api/family/' + code + '/month-balance', {
+    method: 'PUT',
+    body: { year: selectedYear.value, month, manualSolde: newVal }
+  })
+}
+
 const getCarryOver = (month: number): number => {
+  // Manual override for report
+  const manualR = manualReports.value[month]
+  if (manualR !== null && manualR !== undefined) return manualR
+  // Auto: use previous month's solde
   if (month <= 1) return 0
-  // If previous month has a manual balance, use that as carry-over
-  const prevManual = manualBalances.value[month - 1]
-  if (prevManual !== null && prevManual !== undefined) return prevManual
-  // Otherwise, use cumulative balance of previous month
-  return getCumulativeBalance(month - 1)
+  return getMonthSolde(month - 1)
+}
+
+const getMonthSolde = (month: number): number => {
+  // Manual override for solde du mois
+  const manualS = manualSoldes.value[month]
+  if (manualS !== null && manualS !== undefined) return manualS
+  // Auto: report + balance
+  return getCarryOver(month) + getMonthBalance(month)
 }
 
 const getCumulativeBalance = (month: number): number => {
-  // If this month has a manual override, return it
-  const manual = manualBalances.value[month]
-  if (manual !== null && manual !== undefined) return manual
-  return getCarryOver(month) + getMonthBalance(month)
+  return getMonthSolde(month)
 }
 
 const onManualBalanceChange = async (month: number, event: Event) => {
@@ -534,12 +590,18 @@ const fetchData = async () => {
 
     const mMap: Record<number, number> = {}
     const mbMap: Record<number, number | null> = {}
+    const mrMap: Record<number, number | null> = {}
+    const msMap: Record<number, number | null> = {}
     months.forEach((bm: any) => {
       mMap[bm.month] = bm.id
       mbMap[bm.month] = bm.manualBalance ?? null
+      mrMap[bm.month] = bm.manualReport ?? null
+      msMap[bm.month] = bm.manualSolde ?? null
     })
     monthMap.value = mMap
     manualBalances.value = mbMap
+    manualReports.value = mrMap
+    manualSoldes.value = msMap
 
     const lineMap = new Map<string, LineDefinition>()
     months.forEach((bm: any) => {
@@ -558,7 +620,7 @@ const fetchData = async () => {
           })
         }
         const def = lineMap.get(key)!
-        def.amounts[bm.month] = { lineId: line.id, amount: line.amount }
+        def.amounts[bm.month] = { lineId: line.id, amount: line.amount, isPaid: line.isPaid ?? false }
         if (line.categoryId) {
           def.categoryId = line.categoryId
           def.categoryEmoji = line.category?.emoji || ''
@@ -615,7 +677,7 @@ const onCellChange = async (lineDef: LineDefinition, month: number, event: Event
         categoryId: lineDef.categoryId
       }
     }) as any
-    lineDef.amounts[month] = { lineId: created.id, amount: created.amount }
+    lineDef.amounts[month] = { lineId: created.id, amount: created.amount, isPaid: false }
   }
   // Force reactivity update
   lineDefinitions.value = [...lineDefinitions.value]

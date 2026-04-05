@@ -14,6 +14,7 @@ export default defineEventHandler(async (event) => {
   if (body.isIncome !== undefined) data.isIncome = Boolean(body.isIncome)
   if (body.categoryId !== undefined) data.categoryId = body.categoryId ? Number(body.categoryId) : null
   if (body.paymentMethod !== undefined) data.paymentMethod = body.paymentMethod || null
+  if (body.isPaid !== undefined) data.isPaid = Boolean(body.isPaid)
 
   const line = await prisma.budgetLine.update({
     where: { id },

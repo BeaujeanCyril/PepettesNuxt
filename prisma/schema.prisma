@@ -27,6 +27,8 @@ model BudgetMonth {
   year           Int
   month          Int
   manualBalance  Float?       // Override du solde cumule (null = calcul auto)
+  manualReport   Float?       // Override du report precedent (null = calcul auto)
+  manualSolde    Float?       // Override du solde du mois (null = calcul auto)
   familyId       Int
   family         Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
   lines          BudgetLine[]
@@ -43,6 +45,7 @@ model BudgetLine {
   amount        Float
   isIncome      Boolean     @default(false)
   paymentMethod String?     // "visa", "domiciliation", "ordre_permanent", "virement", null
+  isPaid        Boolean     @default(false)
   categoryId    Int?
   category      Category?   @relation(fields: [categoryId], references: [id])
   budgetMonthId Int
