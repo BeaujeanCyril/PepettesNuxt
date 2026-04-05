@@ -155,6 +155,13 @@
               <td v-for="m in visibleMonths" :key="m" class="text-center font-semibold text-error">{{ formatAmount(getMonthExpense(m)) }}</td>
               <td class="text-center font-bold text-error">{{ formatAmount(totalExpenseVisible) }}</td>
             </tr>
+            <tr class="bg-warning/5">
+              <td class="sticky left-0 bg-warning/5 z-10 text-warning text-sm">
+                💳 dont Visa (indicatif)
+              </td>
+              <td v-for="m in visibleMonths" :key="m" class="text-center text-sm text-warning">{{ formatAmount(getMonthVisaTotal(m)) }}</td>
+              <td class="text-center text-sm font-semibold text-warning">{{ formatAmount(totalVisaVisible) }}</td>
+            </tr>
             <tr><td :colspan="visibleMonths.length + 2" class="h-2 p-0"></td></tr>
             <tr class="bg-base-200 border-t-2">
               <td class="font-bold text-lg sticky left-0 bg-base-200 z-10">SOLDE DU MOIS</td>
@@ -495,6 +502,16 @@ const getMonthExpense = (month: number): number => {
 const getMonthBalance = (month: number): number => {
   return r2(getMonthIncome(month) - getMonthExpense(month))
 }
+
+const getMonthVisaTotal = (month: number): number => {
+  return r2(expenseLines.value
+    .filter(l => l.paymentMethod === 'visa')
+    .reduce((sum, l) => sum + (l.amounts[month]?.amount || 0), 0))
+}
+
+const totalVisaVisible = computed(() => {
+  return r2(visibleMonths.value.reduce((sum, m) => sum + getMonthVisaTotal(m), 0))
+})
 
 const togglePaid = async (lineDef: LineDefinition, month: number) => {
   const entry = lineDef.amounts[month]
