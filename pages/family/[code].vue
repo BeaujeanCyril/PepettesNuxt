@@ -91,11 +91,16 @@
             <tr><td :colspan="visibleMonths.length + 2" class="h-2 p-0"></td></tr>
             <tr class="bg-error/10">
               <td :colspan="visibleMonths.length + 2" class="font-bold text-error text-lg sticky left-0 bg-error/10 z-10">
-                DEPENSES
-                <button class="btn btn-ghost btn-xs ml-2" @click="openAddLineModal(false)">+</button>
-                <button class="btn btn-ghost btn-xs ml-1" @click="toggleAllCategories" :title="allCategoriesCollapsed ? 'Tout deplier' : 'Tout replier'">
-                  {{ allCategoriesCollapsed ? '▶ tout' : '▼ tout' }}
-                </button>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span>DEPENSES</span>
+                  <button class="btn btn-ghost btn-xs" @click="openAddLineModal(false)">+</button>
+                  <button class="btn btn-ghost btn-xs" @click="toggleAllCategories" :title="allCategoriesCollapsed ? 'Tout deplier' : 'Tout replier'">
+                    {{ allCategoriesCollapsed ? '▶ tout' : '▼ tout' }}
+                  </button>
+                  <input type="text" v-model="searchQuery"
+                    class="input input-xs input-bordered bg-base-100 text-base-content w-40 font-normal text-sm"
+                    placeholder="🔍 Rechercher..." />
+                </div>
               </td>
             </tr>
             <template v-for="group in expenseGroups" :key="group.category">
@@ -112,7 +117,7 @@
                 <td class="text-center font-semibold text-error">{{ formatAmount(getCategoryTotalVisible(group)) }}</td>
               </tr>
               <!-- Lines (visible when not collapsed) -->
-              <template v-if="!collapsedCategories.has(group.category)">
+              <template v-if="!collapsedCategories.has(group.category) || searchQuery">
                 <tr v-for="line in group.lines" :key="line.id" class="hover">
                   <td class="sticky left-0 bg-base-100 z-10 pl-8">
                     <div class="flex items-center gap-1">
@@ -396,10 +401,18 @@ interface ExpenseGroup {
 }
 
 const collapsedCategories = ref(new Set<string>())
+const searchQuery = ref('')
 
 const expenseGroups = computed<ExpenseGroup[]>(() => {
+  const q = searchQuery.value.toLowerCase().trim()
   const groups = new Map<string, ExpenseGroup>()
   for (const line of expenseLines.value) {
+    // Filter by search query (name or amount)
+    if (q) {
+      const nameMatch = line.name.toLowerCase().includes(q)
+      const amountMatch = Object.values(line.amounts).some(a => String(a.amount).includes(q))
+      if (!nameMatch && !amountMatch) continue
+    }
     const catName = line.categoryId
       ? (categories.value.find((c: any) => c.id === line.categoryId)?.name || 'Autres')
       : 'Sans catégorie'
