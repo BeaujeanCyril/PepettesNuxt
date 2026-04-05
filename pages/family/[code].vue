@@ -30,7 +30,11 @@
           <thead>
             <tr class="bg-base-200">
               <th class="min-w-[200px] sticky left-0 bg-base-200 z-10">Libelle</th>
-              <th v-for="m in 12" :key="m" class="text-center min-w-[100px]">{{ monthNames[m - 1] }}</th>
+              <th v-for="m in 12" :key="m" :ref="el => { if (m === currentMonth) currentMonthEl = el as HTMLElement }"
+                class="text-center min-w-[100px]"
+                :class="m === currentMonth ? 'bg-primary/10 border-b-2 border-primary' : ''">
+                {{ monthNames[m - 1] }}{{ m === currentMonth ? ' ●' : '' }}
+              </th>
               <th class="text-center min-w-[110px] font-bold">TOTAL</th>
             </tr>
           </thead>
@@ -137,6 +141,32 @@
           <input v-model="newLineName" type="text" class="input input-bordered" placeholder="Ex: Salaire, Loyer..." />
         </div>
         <div class="form-control mb-3">
+          <label class="label"><span class="label-text">Montant</span></label>
+          <input v-model.number="newLineAmount" type="number" class="input input-bordered" step="0.01" min="0" placeholder="0.00" />
+        </div>
+        <div class="form-control mb-3">
+          <label class="label"><span class="label-text">Recurrence</span></label>
+          <select v-model="newLineRecurrence" class="select select-bordered">
+            <option value="none">Ponctuel (mois en cours)</option>
+            <option value="monthly">Mensuel</option>
+            <option value="yearly">Annuel (ce mois uniquement)</option>
+          </select>
+        </div>
+        <div v-if="newLineRecurrence === 'monthly'" class="form-control mb-3 flex flex-row gap-2 items-end">
+          <div class="flex-1">
+            <label class="label"><span class="label-text">Du mois</span></label>
+            <select v-model.number="newLineFromMonth" class="select select-bordered w-full">
+              <option v-for="m in 12" :key="m" :value="m">{{ monthNames[m - 1] }}</option>
+            </select>
+          </div>
+          <div class="flex-1">
+            <label class="label"><span class="label-text">Au mois</span></label>
+            <select v-model.number="newLineToMonth" class="select select-bordered w-full">
+              <option v-for="m in 12" :key="m" :value="m">{{ monthNames[m - 1] }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-control mb-3">
           <label class="label"><span class="label-text">Categorie</span></label>
           <div class="flex gap-2">
             <select v-model="newLineCategoryId" class="select select-bordered flex-1">
@@ -181,6 +211,7 @@ const selectedYear = ref(new Date().getFullYear())
 const loadingData = ref(true)
 const familyName = ref('')
 const categories = ref<any[]>([])
+const currentMonthEl = ref<HTMLElement | null>(null)
 
 interface LineDefinition {
   id: string
@@ -351,14 +382,24 @@ const onCellChange = async (lineDef: LineDefinition, month: number, event: Event
 const addLineModal = ref<HTMLDialogElement>()
 const addingIncome = ref(false)
 const newLineName = ref('')
+const newLineAmount = ref<number>(0)
+const newLineRecurrence = ref<'none' | 'monthly' | 'yearly'>('monthly')
+const newLineFromMonth = ref(1)
+const newLineToMonth = ref(12)
 const newLineCategoryId = ref<number | null>(null)
 const showNewCategory = ref(false)
 const newCategoryName = ref('')
 const newCategoryEmoji = ref('')
 
+const currentMonth = new Date().getMonth() + 1
+
 const openAddLineModal = (isIncome: boolean) => {
   addingIncome.value = isIncome
   newLineName.value = ''
+  newLineAmount.value = 0
+  newLineRecurrence.value = 'monthly'
+  newLineFromMonth.value = 1
+  newLineToMonth.value = 12
   newLineCategoryId.value = null
   showNewCategory.value = false
   addLineModal.value?.showModal()
@@ -392,16 +433,64 @@ const addLine = async () => {
   if (!newLineName.value) return
   const category = categories.value.find((c: any) => c.id === newLineCategoryId.value)
   const key = newLineName.value + '__' + String(addingIncome.value)
-  const existing = lineDefinitions.value.find(l => l.id === key)
-  if (existing) { closeAddLineModal(); return }
-  lineDefinitions.value.push({
-    id: key,
-    name: newLineName.value,
-    isIncome: addingIncome.value,
-    categoryId: newLineCategoryId.value,
-    categoryEmoji: category?.emoji || '',
-    amounts: {}
-  })
+  const amount = Math.abs(newLineAmount.value || 0)
+
+  // Determine which months to fill
+  let monthsToFill: number[] = []
+  if (newLineRecurrence.value === 'none') {
+    monthsToFill = [currentMonth]
+  } else if (newLineRecurrence.value === 'yearly') {
+    monthsToFill = [currentMonth]
+  } else {
+    // monthly: from X to Y
+    const from = newLineFromMonth.value
+    const to = newLineToMonth.value
+    for (let m = from; m <= to; m++) monthsToFill.push(m)
+  }
+
+  // Create or find the line definition
+  let lineDef = lineDefinitions.value.find(l => l.id === key)
+  if (!lineDef) {
+    lineDef = {
+      id: key,
+      name: newLineName.value,
+      isIncome: addingIncome.value,
+      categoryId: newLineCategoryId.value,
+      categoryEmoji: category?.emoji || '',
+      amounts: {}
+    }
+    lineDefinitions.value.push(lineDef)
+  }
+
+  // Create budget lines in DB for each month if amount > 0
+  if (amount > 0) {
+    for (const m of monthsToFill) {
+      let budgetMonthId = monthMap.value[m]
+      if (!budgetMonthId) {
+        const bm = await $fetch('/api/family/' + code + '/month', {
+          method: 'POST',
+          body: { year: selectedYear.value, month: m }
+        }) as any
+        budgetMonthId = bm.id
+        monthMap.value[m] = bm.id
+      }
+
+      if (!lineDef.amounts[m]) {
+        const created = await $fetch('/api/family/' + code + '/lines/add', {
+          method: 'POST',
+          body: {
+            budgetMonthId,
+            name: newLineName.value,
+            amount,
+            isIncome: addingIncome.value,
+            categoryId: newLineCategoryId.value
+          }
+        }) as any
+        lineDef.amounts[m] = { lineId: created.id, amount: created.amount }
+      }
+    }
+  }
+
   closeAddLineModal()
 }
 
@@ -418,6 +507,10 @@ onMounted(async () => {
   await initKeycloak()
   if (hasAccess.value) {
     await fetchData()
+    await nextTick()
+    if (currentMonthEl.value) {
+      currentMonthEl.value.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+    }
   }
 })
 
