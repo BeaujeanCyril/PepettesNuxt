@@ -151,14 +151,23 @@
               <td></td>
             </tr>
             <tr class="bg-base-300 border-t-2">
-              <td class="font-bold text-xl sticky left-0 bg-base-300 z-10">SOLDE CUMULE</td>
-              <td v-for="m in visibleMonths" :key="m" class="text-center font-bold text-xl"
-                :class="getCumulativeBalance(m) >= 0 ? 'text-success' : 'text-error'">
-                {{ formatAmount(getCumulativeBalance(m)) }}
+              <td class="font-bold text-xl sticky left-0 bg-base-300 z-10">
+                SOLDE CUMULE
+                <span class="text-xs font-normal opacity-50 block">Editable pour corriger</span>
+              </td>
+              <td v-for="m in visibleMonths" :key="m" class="text-center p-0">
+                <input type="number"
+                  :value="getCumulativeBalance(m) || ''"
+                  :placeholder="formatAmount(getCarryOver(m) + getMonthBalance(m))"
+                  class="input input-ghost input-sm w-full text-center font-bold text-xl"
+                  :class="getCumulativeBalance(m) >= 0 ? 'text-success' : 'text-error'"
+                  step="0.01"
+                  @change="(e: Event) => onManualBalanceChange(m, e)"
+                  @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
               </td>
               <td class="text-center font-bold text-xl"
-                :class="getCumulativeBalance(12) >= 0 ? 'text-success' : 'text-error'">
-                {{ formatAmount(getCumulativeBalance(12)) }}
+                :class="getCumulativeBalance(visibleMonths[visibleMonths.length - 1]) >= 0 ? 'text-success' : 'text-error'">
+                {{ formatAmount(getCumulativeBalance(visibleMonths[visibleMonths.length - 1])) }}
               </td>
             </tr>
           </tbody>
@@ -240,7 +249,9 @@
     <!-- Edit line modal -->
     <dialog ref="editLineModal" class="modal">
       <div class="modal-box">
-        <h3 class="font-bold text-lg mb-4">Modifier la ligne</h3>
+        <h3 class="font-bold text-lg mb-4">
+          Modifier {{ editLineIsIncome ? 'le revenu' : 'la depense' }}
+        </h3>
         <div class="form-control mb-3">
           <label class="label"><span class="label-text">Nom</span></label>
           <input v-model="editLineName" type="text" class="input input-bordered" />
@@ -255,12 +266,26 @@
           </select>
         </div>
         <div class="form-control mb-3">
-          <label class="label"><span class="label-text">Type</span></label>
-          <div class="flex gap-2">
-            <span class="badge" :class="editLineIsIncome ? 'badge-success' : 'badge-error'">
-              {{ editLineIsIncome ? 'Revenu' : 'Depense' }}
-            </span>
+          <label class="label"><span class="label-text">Nouveau montant</span></label>
+          <input v-model.number="editLineAmount" type="number" class="input input-bordered" step="0.01" min="0" placeholder="Laisser vide pour ne pas modifier" />
+          <p class="text-xs text-base-content/50 mt-1">Applique a tous les mois existants de cette ligne</p>
+        </div>
+        <div class="divider text-xs">Recurrence</div>
+        <div v-if="editLineRecurringId" class="form-control mb-3">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="badge badge-outline badge-sm">{{ editLineRecurringType }}</span>
+            <span class="text-sm text-base-content/60">depuis {{ monthNames[(editLineRecurringStartMonth || 1) - 1] }} {{ editLineRecurringStartYear }}</span>
           </div>
+          <select v-model="editLineNewRecurrence" class="select select-bordered select-sm">
+            <option value="">Ne pas modifier</option>
+            <option value="monthly">Mensuel</option>
+            <option value="quarterly">Trimestriel</option>
+            <option value="yearly">Annuel</option>
+            <option value="stop">Arreter la recurrence</option>
+          </select>
+        </div>
+        <div v-else class="text-sm text-base-content/50 mb-3">
+          Aucune recurrence associee (ligne ponctuelle)
         </div>
         <div class="modal-action">
           <button class="btn btn-ghost" @click="editLineModal?.close()">Annuler</button>
@@ -307,6 +332,7 @@ interface LineDefinition {
 
 const lineDefinitions = ref<LineDefinition[]>([])
 const monthMap = ref<Record<number, number>>({})
+const manualBalances = ref<Record<number, number | null>>({})
 
 const incomeLines = computed(() => lineDefinitions.value.filter(l => l.isIncome))
 const expenseLines = computed(() => lineDefinitions.value.filter(l => !l.isIncome))
@@ -374,15 +400,33 @@ const getMonthBalance = (month: number): number => {
 
 const getCarryOver = (month: number): number => {
   if (month <= 1) return 0
-  let carry = 0
-  for (let m = 1; m < month; m++) {
-    carry += getMonthBalance(m)
-  }
-  return carry
+  // If previous month has a manual balance, use that as carry-over
+  const prevManual = manualBalances.value[month - 1]
+  if (prevManual !== null && prevManual !== undefined) return prevManual
+  // Otherwise, use cumulative balance of previous month
+  return getCumulativeBalance(month - 1)
 }
 
 const getCumulativeBalance = (month: number): number => {
+  // If this month has a manual override, return it
+  const manual = manualBalances.value[month]
+  if (manual !== null && manual !== undefined) return manual
   return getCarryOver(month) + getMonthBalance(month)
+}
+
+const onManualBalanceChange = async (month: number, event: Event) => {
+  const input = event.target as HTMLInputElement
+  const val = input.value.trim()
+  const newBalance = val === '' ? null : parseFloat(val)
+
+  manualBalances.value[month] = newBalance
+  // Force reactivity
+  manualBalances.value = { ...manualBalances.value }
+
+  await $fetch('/api/family/' + code + '/month-balance', {
+    method: 'PUT',
+    body: { year: selectedYear.value, month, manualBalance: newBalance }
+  })
 }
 
 const totalIncomeVisible = computed(() => {
@@ -416,14 +460,20 @@ const fetchData = async () => {
     familyName.value = (family as any).name
 
     categories.value = await $fetch('/api/family/' + code + '/categories')
+    await loadRecurringLines()
 
     const months = await $fetch('/api/family/' + code + '/months', {
       params: { year: selectedYear.value }
     }) as any[]
 
     const mMap: Record<number, number> = {}
-    months.forEach((bm: any) => { mMap[bm.month] = bm.id })
+    const mbMap: Record<number, number | null> = {}
+    months.forEach((bm: any) => {
+      mMap[bm.month] = bm.id
+      mbMap[bm.month] = bm.manualBalance ?? null
+    })
     monthMap.value = mMap
+    manualBalances.value = mbMap
 
     const lineMap = new Map<string, LineDefinition>()
     months.forEach((bm: any) => {
@@ -522,32 +572,86 @@ const editingLine = ref<LineDefinition | null>(null)
 const editLineName = ref('')
 const editLineCategoryId = ref<number | null>(null)
 const editLineIsIncome = ref(false)
+const editLineAmount = ref<number | null>(null)
+const editLineRecurringId = ref<number | null>(null)
+const editLineRecurringType = ref('')
+const editLineRecurringStartMonth = ref<number | null>(null)
+const editLineRecurringStartYear = ref<number | null>(null)
+const editLineNewRecurrence = ref('')
+const recurringLines = ref<any[]>([])
+
+const loadRecurringLines = async () => {
+  try {
+    recurringLines.value = await $fetch('/api/family/' + code + '/recurring') as any[]
+  } catch { recurringLines.value = [] }
+}
 
 const openEditLineModal = (line: LineDefinition) => {
   editingLine.value = line
   editLineName.value = line.name
   editLineCategoryId.value = line.categoryId
   editLineIsIncome.value = line.isIncome
+  editLineAmount.value = null
+  editLineNewRecurrence.value = ''
+
+  // Find matching recurring line
+  const recurring = recurringLines.value.find(
+    (r: any) => r.name === line.name && r.isIncome === line.isIncome
+  )
+  if (recurring) {
+    editLineRecurringId.value = recurring.id
+    editLineRecurringType.value = recurring.type
+    editLineRecurringStartMonth.value = recurring.startMonth
+    editLineRecurringStartYear.value = recurring.startYear
+  } else {
+    editLineRecurringId.value = null
+    editLineRecurringType.value = ''
+    editLineRecurringStartMonth.value = null
+    editLineRecurringStartYear.value = null
+  }
+
   editLineModal.value?.showModal()
 }
 
 const saveEditLine = async () => {
   if (!editingLine.value || !editLineName.value) return
   const line = editingLine.value
-  const oldName = line.name
   const newName = editLineName.value
   const newCategoryId = editLineCategoryId.value
   const category = categories.value.find((c: any) => c.id === newCategoryId)
+  const newAmount = editLineAmount.value
 
-  // Update all BudgetLine records for this line definition
+  // Update all BudgetLine records
   for (const [, entry] of Object.entries(line.amounts)) {
+    const body: any = { name: newName, categoryId: newCategoryId }
+    if (newAmount !== null && newAmount > 0) body.amount = newAmount
     await $fetch('/api/family/' + code + '/lines/' + (entry as any).lineId, {
       method: 'PUT',
-      body: {
-        name: newName,
-        categoryId: newCategoryId
-      }
+      body
     })
+    if (newAmount !== null && newAmount > 0) (entry as any).amount = newAmount
+  }
+
+  // Update recurring line if needed
+  if (editLineRecurringId.value) {
+    // Update amount on recurring definition
+    if (newAmount !== null && newAmount > 0) {
+      await $fetch('/api/family/' + code + '/recurring/' + editLineRecurringId.value, {
+        method: 'PUT',
+        body: { name: newName, amount: newAmount, categoryId: newCategoryId }
+      }).catch(() => {})
+    }
+    // Change recurrence type or stop
+    if (editLineNewRecurrence.value === 'stop') {
+      await $fetch('/api/family/' + code + '/recurring/' + editLineRecurringId.value, {
+        method: 'DELETE'
+      })
+    } else if (editLineNewRecurrence.value) {
+      await $fetch('/api/family/' + code + '/recurring/' + editLineRecurringId.value, {
+        method: 'PUT',
+        body: { type: editLineNewRecurrence.value }
+      }).catch(() => {})
+    }
   }
 
   // Update local state
@@ -558,6 +662,7 @@ const saveEditLine = async () => {
   lineDefinitions.value = [...lineDefinitions.value]
 
   editLineModal.value?.close()
+  await loadRecurringLines()
 }
 
 const openAddLineModal = (isIncome: boolean) => {

@@ -23,14 +23,15 @@ model Family {
 }
 
 model BudgetMonth {
-  id        Int          @id @default(autoincrement())
-  year      Int
-  month     Int
-  familyId  Int
-  family    Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
-  lines     BudgetLine[]
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id             Int          @id @default(autoincrement())
+  year           Int
+  month          Int
+  manualBalance  Float?       // Override du solde cumule (null = calcul auto)
+  familyId       Int
+  family         Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  lines          BudgetLine[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   @@unique([year, month, familyId])
   @@schema("pepettes")
