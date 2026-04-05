@@ -118,7 +118,7 @@
                     <div class="flex items-center gap-1">
                       <span class="text-error/40">└</span>
                       <span class="cursor-pointer hover:underline" @click="openEditLineModal(line)">{{ line.name }}</span>
-                      <span v-if="line.paymentMethod === 'visa'" class="badge badge-xs badge-warning">💳</span>
+                      <span v-if="line.paymentMethod === 'visa'" class="text-xs opacity-60" title="Visa">💳</span>
                       <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100" @click="deleteLine(line)">x</button>
                     </div>
                   </td>
@@ -447,13 +447,6 @@ const toggleAllCategories = () => {
   }
 }
 
-const getCategoryMonthTotal = (group: ExpenseGroup, month: number): number => {
-  return group.lines.reduce((sum, l) => sum + (l.amounts[month]?.amount || 0), 0)
-}
-
-const getCategoryTotalVisible = (group: ExpenseGroup): number => {
-  return visibleMonths.value.reduce((sum, m) => sum + getCategoryMonthTotal(group, m), 0)
-}
 
 const getCellValue = (lineDefId: string, month: number): number => {
   const line = lineDefinitions.value.find(l => l.id === lineDefId)
@@ -467,18 +460,17 @@ const getLineTotal = (lineDefId: string): number => {
 }
 
 const getMonthIncome = (month: number): number => {
-  return incomeLines.value.reduce((sum, l) => sum + (l.amounts[month]?.amount || 0), 0)
+  return r2(incomeLines.value.reduce((sum, l) => sum + (l.amounts[month]?.amount || 0), 0))
 }
 
 const getMonthExpense = (month: number): number => {
-  // Exclude visa-paid lines from total — only the manual Visa line counts
-  return expenseLines.value
+  return r2(expenseLines.value
     .filter(l => l.paymentMethod !== 'visa')
-    .reduce((sum, l) => sum + (l.amounts[month]?.amount || 0), 0)
+    .reduce((sum, l) => sum + (l.amounts[month]?.amount || 0), 0))
 }
 
 const getMonthBalance = (month: number): number => {
-  return getMonthIncome(month) - getMonthExpense(month)
+  return r2(getMonthIncome(month) - getMonthExpense(month))
 }
 
 const togglePaid = async (lineDef: LineDefinition, month: number) => {
@@ -515,21 +507,25 @@ const onManualSoldeChange = async (month: number, event: Event) => {
   })
 }
 
+const getCategoryMonthTotal = (group: any, month: number): number => {
+  return r2(group.lines.reduce((sum: number, l: LineDefinition) => sum + (l.amounts[month]?.amount || 0), 0))
+}
+
+const getCategoryTotalVisible = (group: any): number => {
+  return r2(visibleMonths.value.reduce((sum, m) => sum + getCategoryMonthTotal(group, m), 0))
+}
+
 const getCarryOver = (month: number): number => {
-  // Manual override for report
   const manualR = manualReports.value[month]
-  if (manualR !== null && manualR !== undefined) return manualR
-  // Auto: use previous month's solde
+  if (manualR !== null && manualR !== undefined) return r2(manualR)
   if (month <= 1) return 0
-  return getMonthSolde(month - 1)
+  return r2(getMonthSolde(month - 1))
 }
 
 const getMonthSolde = (month: number): number => {
-  // Manual override for solde du mois
   const manualS = manualSoldes.value[month]
-  if (manualS !== null && manualS !== undefined) return manualS
-  // Auto: report + balance
-  return getCarryOver(month) + getMonthBalance(month)
+  if (manualS !== null && manualS !== undefined) return r2(manualS)
+  return r2(getCarryOver(month) + getMonthBalance(month))
 }
 
 const getCumulativeBalance = (month: number): number => {
@@ -567,9 +563,11 @@ const getLineTotalVisible = (lineDefId: string): number => {
   return visibleMonths.value.reduce((sum, m) => sum + (line.amounts[m]?.amount || 0), 0)
 }
 
+const r2 = (n: number) => Math.round(n * 100) / 100
+
 const formatAmount = (amount: number): string => {
   if (amount === 0) return '-'
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount)
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(r2(amount))
 }
 
 const fetchData = async () => {
