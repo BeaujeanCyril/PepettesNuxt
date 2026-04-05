@@ -83,5 +83,9 @@ function isMonthInRange(year: number, month: number, recurring: any): boolean {
     const end = recurring.endYear * 12 + recurring.endMonth
     if (current > end) return false
   }
+  // Yearly: only the specific month each year
+  if (recurring.type === 'yearly') {
+    return month === recurring.startMonth
+  }
   return true
 }

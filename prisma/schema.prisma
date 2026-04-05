@@ -69,6 +69,7 @@ model RecurringLine {
   name       String
   amount     Float
   isIncome   Boolean   @default(false)
+  type       String    @default("monthly") // "monthly" or "yearly"
   categoryId Int?
   category   Category? @relation(fields: [categoryId], references: [id])
   familyId   Int

@@ -9,28 +9,28 @@ export default defineEventHandler(async (event) => {
   const family = await prisma.family.findUnique({ where: { code } })
   if (!family) throw createError({ statusCode: 404, statusMessage: 'Famille non trouvée' })
 
-  const { name, amount, isIncome, categoryId, startMonth, startYear, endMonth, endYear } = body
+  const { name, amount, isIncome, categoryId, startMonth, startYear, type } = body
 
   if (!name || amount === undefined || !startMonth || !startYear) {
     throw createError({ statusCode: 400, statusMessage: 'Champs requis: name, amount, startMonth, startYear' })
   }
 
-  // Create the recurring line definition
   const recurring = await prisma.recurringLine.create({
     data: {
       name,
       amount: Math.abs(amount),
       isIncome: !!isIncome,
+      type: type || 'monthly',
       categoryId: categoryId || null,
       familyId: family.id,
       startMonth,
       startYear,
-      endMonth: endMonth || null,
-      endYear: endYear || null
+      endMonth: null,
+      endYear: null
     }
   })
 
-  // Materialize lines for the start year immediately
+  // Materialize for the start year
   await materializeRecurring(family.id, recurring, startYear)
 
   return recurring
@@ -38,9 +38,8 @@ export default defineEventHandler(async (event) => {
 
 async function materializeRecurring(familyId: number, recurring: any, year: number) {
   for (let m = 1; m <= 12; m++) {
-    if (!isMonthInRange(year, m, recurring)) continue
+    if (!shouldMaterialize(year, m, recurring)) continue
 
-    // Ensure BudgetMonth exists
     let budgetMonth = await prisma.budgetMonth.findUnique({
       where: { year_month_familyId: { year, month: m, familyId } }
     })
@@ -50,7 +49,6 @@ async function materializeRecurring(familyId: number, recurring: any, year: numb
       })
     }
 
-    // Check if line already exists for this month
     const existing = await prisma.budgetLine.findFirst({
       where: {
         budgetMonthId: budgetMonth.id,
@@ -73,13 +71,17 @@ async function materializeRecurring(familyId: number, recurring: any, year: numb
   }
 }
 
-function isMonthInRange(year: number, month: number, recurring: any): boolean {
+function shouldMaterialize(year: number, month: number, recurring: any): boolean {
   const start = recurring.startYear * 12 + recurring.startMonth
   const current = year * 12 + month
   if (current < start) return false
   if (recurring.endYear && recurring.endMonth) {
     const end = recurring.endYear * 12 + recurring.endMonth
     if (current > end) return false
+  }
+  // Yearly: only the specific month each year
+  if (recurring.type === 'yearly') {
+    return month === recurring.startMonth
   }
   return true
 }

@@ -20,17 +20,24 @@
       <div class="alert alert-warning max-w-md"><span>Acces non autorise.</span></div>
     </div>
     <div v-else class="p-4 max-w-[1600px] mx-auto">
-      <div class="flex items-center justify-center gap-4 mb-6">
-        <button class="btn btn-circle btn-sm" @click="changeYear(-1)">&laquo;</button>
-        <span class="text-2xl font-bold min-w-[80px] text-center">{{ selectedYear }}</span>
-        <button class="btn btn-circle btn-sm" @click="changeYear(1)">&raquo;</button>
+      <div class="flex flex-col items-center gap-3 mb-6">
+        <div class="flex items-center gap-4">
+          <button class="btn btn-circle btn-sm" @click="changeYear(-1)">&laquo;</button>
+          <span class="text-2xl font-bold min-w-[80px] text-center">{{ selectedYear }}</span>
+          <button class="btn btn-circle btn-sm" @click="changeYear(1)">&raquo;</button>
+        </div>
+        <div class="join">
+          <button class="btn btn-sm join-item" :class="viewMode === 'S1' ? 'btn-primary' : 'btn-ghost'" @click="viewMode = 'S1'">S1</button>
+          <button class="btn btn-sm join-item" :class="viewMode === 'S2' ? 'btn-primary' : 'btn-ghost'" @click="viewMode = 'S2'">S2</button>
+          <button class="btn btn-sm join-item" :class="viewMode === 'year' ? 'btn-primary' : 'btn-ghost'" @click="viewMode = 'year'">Annee</button>
+        </div>
       </div>
       <div class="overflow-x-auto bg-base-100 rounded-xl shadow-lg">
         <table class="table table-sm table-pin-cols">
           <thead>
             <tr class="bg-base-200">
               <th class="min-w-[200px] sticky left-0 bg-base-200 z-10">Libelle</th>
-              <th v-for="m in 12" :key="m" :ref="el => { if (m === currentMonth) currentMonthEl = el as HTMLElement }"
+              <th v-for="m in visibleMonths" :key="m" :ref="el => { if (m === currentMonth) currentMonthEl = el as HTMLElement }"
                 class="text-center min-w-[100px]"
                 :class="m === currentMonth ? 'bg-primary/10 border-b-2 border-primary' : ''">
                 {{ monthNames[m - 1] }}{{ m === currentMonth ? ' ●' : '' }}
@@ -46,11 +53,11 @@
                 <button class="btn btn-ghost btn-xs ml-2" @click.stop="openAddLineModal(true)">+</button>
               </td>
               <template v-if="incomeCollapsed">
-                <td v-for="m in 12" :key="m" class="text-center font-semibold text-success">{{ formatAmount(getMonthIncome(m)) }}</td>
-                <td class="text-center font-bold text-success">{{ formatAmount(totalIncomeYear) }}</td>
+                <td v-for="m in visibleMonths" :key="m" class="text-center font-semibold text-success">{{ formatAmount(getMonthIncome(m)) }}</td>
+                <td class="text-center font-bold text-success">{{ formatAmount(totalIncomeVisible) }}</td>
               </template>
               <template v-else>
-                <td colspan="13"></td>
+                <td :colspan="visibleMonths.length + 1"></td>
               </template>
             </tr>
             <template v-if="!incomeCollapsed">
@@ -62,65 +69,82 @@
                     <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100" @click="deleteLine(line)">x</button>
                   </div>
                 </td>
-                <td v-for="m in 12" :key="m" class="text-center p-0">
+                <td v-for="m in visibleMonths" :key="m" class="text-center p-0">
                   <input type="number" :value="getCellValue(line.id, m)"
                     class="input input-ghost input-sm w-full text-center text-success"
                     step="0.01" min="0"
                     @change="(e: Event) => onCellChange(line, m, e)"
                     @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
                 </td>
-                <td class="text-center font-semibold text-success">{{ formatAmount(getLineTotal(line.id)) }}</td>
+                <td class="text-center font-semibold text-success">{{ formatAmount(getLineTotalVisible(line.id)) }}</td>
               </tr>
               <tr class="border-t-2 border-success/30 bg-success/5">
                 <td class="font-bold text-success sticky left-0 bg-success/5 z-10">Total revenus</td>
-                <td v-for="m in 12" :key="m" class="text-center font-semibold text-success">{{ formatAmount(getMonthIncome(m)) }}</td>
-                <td class="text-center font-bold text-success">{{ formatAmount(totalIncomeYear) }}</td>
+                <td v-for="m in visibleMonths" :key="m" class="text-center font-semibold text-success">{{ formatAmount(getMonthIncome(m)) }}</td>
+                <td class="text-center font-bold text-success">{{ formatAmount(totalIncomeVisible) }}</td>
               </tr>
             </template>
-            <tr><td colspan="14" class="h-2 p-0"></td></tr>
+            <tr><td :colspan="visibleMonths.length + 2" class="h-2 p-0"></td></tr>
             <tr class="bg-error/10">
-              <td colspan="14" class="font-bold text-error text-lg sticky left-0 bg-error/10 z-10">
+              <td :colspan="visibleMonths.length + 2" class="font-bold text-error text-lg sticky left-0 bg-error/10 z-10">
                 DEPENSES
                 <button class="btn btn-ghost btn-xs ml-2" @click="openAddLineModal(false)">+</button>
               </td>
             </tr>
-            <tr v-for="line in expenseLines" :key="line.id" class="hover">
-              <td class="sticky left-0 bg-base-100 z-10">
-                <div class="flex items-center gap-1">
-                  <span class="text-error">{{ line.categoryEmoji }}</span>
-                  <span>{{ line.name }}</span>
-                  <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100" @click="deleteLine(line)">x</button>
-                </div>
-              </td>
-              <td v-for="m in 12" :key="m" class="text-center p-0">
-                <input type="number" :value="getCellValue(line.id, m)"
-                  class="input input-ghost input-sm w-full text-center text-error"
-                  step="0.01" min="0"
-                  @change="(e: Event) => onCellChange(line, m, e)"
-                  @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
-              </td>
-              <td class="text-center font-semibold text-error">{{ formatAmount(getLineTotal(line.id)) }}</td>
-            </tr>
+            <template v-for="group in expenseGroups" :key="group.category">
+              <!-- Category header (collapsable) -->
+              <tr class="bg-error/5 cursor-pointer select-none" @click="toggleCategory(group.category)">
+                <td class="sticky left-0 bg-error/5 z-10 font-semibold text-error">
+                  <span class="text-xs mr-1">{{ collapsedCategories.has(group.category) ? '▶' : '▼' }}</span>
+                  {{ group.emoji }} {{ group.category }}
+                  <span class="text-xs opacity-50 ml-1">({{ group.lines.length }})</span>
+                </td>
+                <td v-for="m in visibleMonths" :key="m" class="text-center font-semibold text-error/70">
+                  {{ formatAmount(getCategoryMonthTotal(group, m)) }}
+                </td>
+                <td class="text-center font-semibold text-error">{{ formatAmount(getCategoryTotalVisible(group)) }}</td>
+              </tr>
+              <!-- Lines (visible when not collapsed) -->
+              <template v-if="!collapsedCategories.has(group.category)">
+                <tr v-for="line in group.lines" :key="line.id" class="hover">
+                  <td class="sticky left-0 bg-base-100 z-10 pl-8">
+                    <div class="flex items-center gap-1">
+                      <span class="text-error/40">└</span>
+                      <span>{{ line.name }}</span>
+                      <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100" @click="deleteLine(line)">x</button>
+                    </div>
+                  </td>
+                  <td v-for="m in visibleMonths" :key="m" class="text-center p-0">
+                    <input type="number" :value="getCellValue(line.id, m)"
+                      class="input input-ghost input-sm w-full text-center text-error"
+                      step="0.01" min="0"
+                      @change="(e: Event) => onCellChange(line, m, e)"
+                      @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
+                  </td>
+                  <td class="text-center font-semibold text-error">{{ formatAmount(getLineTotalVisible(line.id)) }}</td>
+                </tr>
+              </template>
+            </template>
             <tr class="border-t-2 border-error/30 bg-error/5">
               <td class="font-bold text-error sticky left-0 bg-error/5 z-10">Total depenses</td>
-              <td v-for="m in 12" :key="m" class="text-center font-semibold text-error">{{ formatAmount(getMonthExpense(m)) }}</td>
-              <td class="text-center font-bold text-error">{{ formatAmount(totalExpenseYear) }}</td>
+              <td v-for="m in visibleMonths" :key="m" class="text-center font-semibold text-error">{{ formatAmount(getMonthExpense(m)) }}</td>
+              <td class="text-center font-bold text-error">{{ formatAmount(totalExpenseVisible) }}</td>
             </tr>
-            <tr><td colspan="14" class="h-2 p-0"></td></tr>
+            <tr><td :colspan="visibleMonths.length + 2" class="h-2 p-0"></td></tr>
             <tr class="bg-base-200 border-t-2">
               <td class="font-bold text-lg sticky left-0 bg-base-200 z-10">SOLDE DU MOIS</td>
-              <td v-for="m in 12" :key="m" class="text-center font-bold text-lg"
+              <td v-for="m in visibleMonths" :key="m" class="text-center font-bold text-lg"
                 :class="getMonthBalance(m) >= 0 ? 'text-success' : 'text-error'">
                 {{ formatAmount(getMonthBalance(m)) }}
               </td>
               <td class="text-center font-bold text-lg"
-                :class="totalBalanceYear >= 0 ? 'text-success' : 'text-error'">
-                {{ formatAmount(totalBalanceYear) }}
+                :class="totalBalanceVisible >= 0 ? 'text-success' : 'text-error'">
+                {{ formatAmount(totalBalanceVisible) }}
               </td>
             </tr>
             <tr class="bg-base-200/50">
               <td class="font-semibold sticky left-0 bg-base-200/50 z-10">REPORT PRECEDENT</td>
-              <td v-for="m in 12" :key="m" class="text-center"
+              <td v-for="m in visibleMonths" :key="m" class="text-center"
                 :class="getCarryOver(m) >= 0 ? 'text-success' : 'text-error'">
                 {{ formatAmount(getCarryOver(m)) }}
               </td>
@@ -128,7 +152,7 @@
             </tr>
             <tr class="bg-base-300 border-t-2">
               <td class="font-bold text-xl sticky left-0 bg-base-300 z-10">SOLDE CUMULE</td>
-              <td v-for="m in 12" :key="m" class="text-center font-bold text-xl"
+              <td v-for="m in visibleMonths" :key="m" class="text-center font-bold text-xl"
                 :class="getCumulativeBalance(m) >= 0 ? 'text-success' : 'text-error'">
                 {{ formatAmount(getCumulativeBalance(m)) }}
               </td>
@@ -157,24 +181,22 @@
         <div class="form-control mb-3">
           <label class="label"><span class="label-text">Recurrence</span></label>
           <select v-model="newLineRecurrence" class="select select-bordered">
-            <option value="none">Ponctuel (mois en cours)</option>
+            <option value="none">Ponctuel</option>
             <option value="monthly">Mensuel</option>
-            <option value="yearly">Annuel (ce mois uniquement)</option>
+            <option value="yearly">Annuel</option>
           </select>
         </div>
-        <div v-if="newLineRecurrence === 'monthly'" class="form-control mb-3 flex flex-row gap-2 items-end">
-          <div class="flex-1">
-            <label class="label"><span class="label-text">Du mois</span></label>
-            <select v-model.number="newLineFromMonth" class="select select-bordered w-full">
-              <option v-for="m in 12" :key="m" :value="m">{{ monthNames[m - 1] }}</option>
-            </select>
-          </div>
-          <div class="flex-1">
-            <label class="label"><span class="label-text">Au mois</span></label>
-            <select v-model.number="newLineToMonth" class="select select-bordered w-full">
-              <option v-for="m in 12" :key="m" :value="m">{{ monthNames[m - 1] }}</option>
-            </select>
-          </div>
+        <div v-if="newLineRecurrence === 'none' || newLineRecurrence === 'yearly'" class="form-control mb-3">
+          <label class="label"><span class="label-text">Mois</span></label>
+          <select v-model.number="newLineFromMonth" class="select select-bordered">
+            <option v-for="m in visibleMonths" :key="m" :value="m">{{ monthNames[m - 1] }}</option>
+          </select>
+        </div>
+        <div v-if="newLineRecurrence === 'monthly'" class="form-control mb-3">
+          <label class="label"><span class="label-text">A partir de</span></label>
+          <select v-model.number="newLineFromMonth" class="select select-bordered">
+            <option v-for="m in visibleMonths" :key="m" :value="m">{{ monthNames[m - 1] }}</option>
+          </select>
         </div>
         <div class="form-control mb-3">
           <label class="label"><span class="label-text">Categorie</span></label>
@@ -223,6 +245,13 @@ const familyName = ref('')
 const categories = ref<any[]>([])
 const currentMonthEl = ref<HTMLElement | null>(null)
 const incomeCollapsed = ref(true)
+const viewMode = ref<'S1' | 'S2' | 'year'>(currentMonth <= 6 ? 'S1' : 'S2')
+
+const visibleMonths = computed(() => {
+  if (viewMode.value === 'S1') return [1, 2, 3, 4, 5, 6]
+  if (viewMode.value === 'S2') return [7, 8, 9, 10, 11, 12]
+  return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+})
 
 interface LineDefinition {
   id: string
@@ -238,6 +267,44 @@ const monthMap = ref<Record<number, number>>({})
 
 const incomeLines = computed(() => lineDefinitions.value.filter(l => l.isIncome))
 const expenseLines = computed(() => lineDefinitions.value.filter(l => !l.isIncome))
+
+interface ExpenseGroup {
+  category: string
+  emoji: string
+  lines: LineDefinition[]
+}
+
+const collapsedCategories = ref(new Set<string>())
+
+const expenseGroups = computed<ExpenseGroup[]>(() => {
+  const groups = new Map<string, ExpenseGroup>()
+  for (const line of expenseLines.value) {
+    const catName = line.categoryId
+      ? (categories.value.find((c: any) => c.id === line.categoryId)?.name || 'Autres')
+      : 'Sans catégorie'
+    const catEmoji = line.categoryEmoji || '📁'
+    if (!groups.has(catName)) {
+      groups.set(catName, { category: catName, emoji: catEmoji, lines: [] })
+    }
+    groups.get(catName)!.lines.push(line)
+  }
+  return Array.from(groups.values()).sort((a, b) => a.category.localeCompare(b.category))
+})
+
+const toggleCategory = (category: string) => {
+  const next = new Set(collapsedCategories.value)
+  if (next.has(category)) next.delete(category)
+  else next.add(category)
+  collapsedCategories.value = next
+}
+
+const getCategoryMonthTotal = (group: ExpenseGroup, month: number): number => {
+  return group.lines.reduce((sum, l) => sum + (l.amounts[month]?.amount || 0), 0)
+}
+
+const getCategoryTotalVisible = (group: ExpenseGroup): number => {
+  return visibleMonths.value.reduce((sum, m) => sum + getCategoryMonthTotal(group, m), 0)
+}
 
 const getCellValue = (lineDefId: string, month: number): number => {
   const line = lineDefinitions.value.find(l => l.id === lineDefId)
@@ -275,19 +342,21 @@ const getCumulativeBalance = (month: number): number => {
   return getCarryOver(month) + getMonthBalance(month)
 }
 
-const totalIncomeYear = computed(() => {
-  let total = 0
-  for (let m = 1; m <= 12; m++) total += getMonthIncome(m)
-  return total
+const totalIncomeVisible = computed(() => {
+  return visibleMonths.value.reduce((sum, m) => sum + getMonthIncome(m), 0)
 })
 
-const totalExpenseYear = computed(() => {
-  let total = 0
-  for (let m = 1; m <= 12; m++) total += getMonthExpense(m)
-  return total
+const totalExpenseVisible = computed(() => {
+  return visibleMonths.value.reduce((sum, m) => sum + getMonthExpense(m), 0)
 })
 
-const totalBalanceYear = computed(() => totalIncomeYear.value - totalExpenseYear.value)
+const totalBalanceVisible = computed(() => totalIncomeVisible.value - totalExpenseVisible.value)
+
+const getLineTotalVisible = (lineDefId: string): number => {
+  const line = lineDefinitions.value.find(l => l.id === lineDefId)
+  if (!line) return 0
+  return visibleMonths.value.reduce((sum, m) => sum + (line.amounts[m]?.amount || 0), 0)
+}
 
 const formatAmount = (amount: number): string => {
   if (amount === 0) return '-'
@@ -411,7 +480,7 @@ const openAddLineModal = (isIncome: boolean) => {
   newLineName.value = ''
   newLineAmount.value = 0
   newLineRecurrence.value = 'monthly'
-  newLineFromMonth.value = 1
+  newLineFromMonth.value = currentMonth
   newLineToMonth.value = 12
   newLineCategoryId.value = null
   showNewCategory.value = false
@@ -445,17 +514,18 @@ const createCategory = async () => {
 const addLine = async () => {
   if (!newLineName.value) return
   const amount = Math.abs(newLineAmount.value || 0)
+  const month = newLineFromMonth.value
 
   if (newLineRecurrence.value === 'none') {
-    // Ponctuel: create a single line for current month
-    let budgetMonthId = monthMap.value[currentMonth]
+    // Ponctuel: single line for the selected month
+    let budgetMonthId = monthMap.value[month]
     if (!budgetMonthId) {
       const bm = await $fetch('/api/family/' + code + '/month', {
         method: 'POST',
-        body: { year: selectedYear.value, month: currentMonth }
+        body: { year: selectedYear.value, month }
       }) as any
       budgetMonthId = bm.id
-      monthMap.value[currentMonth] = bm.id
+      monthMap.value[month] = bm.id
     }
     await $fetch('/api/family/' + code + '/lines/add', {
       method: 'POST',
@@ -468,11 +538,7 @@ const addLine = async () => {
       }
     })
   } else {
-    // Recurring (monthly or yearly): create via backend
-    const startMonth = newLineRecurrence.value === 'monthly' ? newLineFromMonth.value : currentMonth
-    const endMonth = newLineRecurrence.value === 'monthly' ? newLineToMonth.value : currentMonth
-    const endYear = newLineRecurrence.value === 'yearly' ? null : null // ongoing
-
+    // Recurring (monthly or yearly)
     await $fetch('/api/family/' + code + '/recurring/add', {
       method: 'POST',
       body: {
@@ -480,16 +546,14 @@ const addLine = async () => {
         amount: amount || 0,
         isIncome: addingIncome.value,
         categoryId: newLineCategoryId.value,
-        startMonth,
-        startYear: selectedYear.value,
-        endMonth: null,  // ongoing until stopped
-        endYear: null
+        type: newLineRecurrence.value,
+        startMonth: month,
+        startYear: selectedYear.value
       }
     })
   }
 
   closeAddLineModal()
-  // Reload data to show materialized lines
   await fetchData()
 }
 
