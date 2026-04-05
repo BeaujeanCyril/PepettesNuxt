@@ -42,6 +42,7 @@ model BudgetLine {
   name          String
   amount        Float
   isIncome      Boolean     @default(false)
+  paymentMethod String?     // "visa", "domiciliation", "ordre_permanent", "virement", null
   categoryId    Int?
   category      Category?   @relation(fields: [categoryId], references: [id])
   budgetMonthId Int
@@ -66,11 +67,12 @@ model Category {
 }
 
 model RecurringLine {
-  id         Int       @id @default(autoincrement())
-  name       String
-  amount     Float
-  isIncome   Boolean   @default(false)
-  type       String    @default("monthly") // "monthly" or "yearly"
+  id            Int       @id @default(autoincrement())
+  name          String
+  amount        Float
+  isIncome      Boolean   @default(false)
+  type          String    @default("monthly")
+  paymentMethod String?   // "visa", "domiciliation", "ordre_permanent", "virement", null
   categoryId Int?
   category   Category? @relation(fields: [categoryId], references: [id])
   familyId   Int

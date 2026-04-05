@@ -118,6 +118,7 @@
                     <div class="flex items-center gap-1">
                       <span class="text-error/40">└</span>
                       <span class="cursor-pointer hover:underline" @click="openEditLineModal(line)">{{ line.name }}</span>
+                      <span v-if="line.paymentMethod === 'visa'" class="badge badge-xs badge-warning">💳</span>
                       <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100" @click="deleteLine(line)">x</button>
                     </div>
                   </td>
@@ -193,6 +194,13 @@
         <div class="form-control mb-3">
           <label class="label"><span class="label-text">Montant</span></label>
           <input v-model.number="newLineAmount" type="number" class="input input-bordered" step="0.01" min="0" placeholder="0.00" />
+        </div>
+        <div v-if="!addingIncome" class="form-control mb-3">
+          <label class="label"><span class="label-text">Moyen de paiement</span></label>
+          <select v-model="newLinePaymentMethod" class="select select-bordered">
+            <option v-for="pm in paymentMethods" :key="pm.value" :value="pm.value">{{ pm.label }}</option>
+          </select>
+          <p v-if="newLinePaymentMethod === 'visa'" class="text-xs text-warning mt-1">💳 Les depenses Visa sont detaillees dans la categorie mais ne comptent pas dans le total. Seul le montant Visa saisi manuellement compte.</p>
         </div>
         <div class="form-control mb-3">
           <label class="label"><span class="label-text">Recurrence</span></label>
@@ -270,6 +278,12 @@
             <option v-for="cat in categories" :key="cat.id" :value="cat.id">
               {{ cat.emoji }} {{ cat.name }}
             </option>
+          </select>
+        </div>
+        <div v-if="!editLineIsIncome" class="form-control mb-3">
+          <label class="label"><span class="label-text">Moyen de paiement</span></label>
+          <select v-model="editLinePaymentMethod" class="select select-bordered">
+            <option v-for="pm in paymentMethods" :key="pm.value" :value="pm.value">{{ pm.label }}</option>
           </select>
         </div>
         <div class="form-control mb-3">
@@ -355,8 +369,17 @@ interface LineDefinition {
   isIncome: boolean
   categoryId: number | null
   categoryEmoji: string
+  paymentMethod: string | null
   amounts: Record<number, { lineId: number; amount: number }>
 }
+
+const paymentMethods = [
+  { value: null, label: 'Compte courant' },
+  { value: 'visa', label: '💳 Visa' },
+  { value: 'domiciliation', label: '🏦 Domiciliation' },
+  { value: 'ordre_permanent', label: '🔄 Ordre permanent' },
+  { value: 'virement', label: '➡️ Virement' }
+]
 
 const lineDefinitions = ref<LineDefinition[]>([])
 const monthMap = ref<Record<number, number>>({})
@@ -431,7 +454,10 @@ const getMonthIncome = (month: number): number => {
 }
 
 const getMonthExpense = (month: number): number => {
-  return expenseLines.value.reduce((sum, l) => sum + (l.amounts[month]?.amount || 0), 0)
+  // Exclude visa-paid lines from total — only the manual Visa line counts
+  return expenseLines.value
+    .filter(l => l.paymentMethod !== 'visa')
+    .reduce((sum, l) => sum + (l.amounts[month]?.amount || 0), 0)
 }
 
 const getMonthBalance = (month: number): number => {
@@ -527,6 +553,7 @@ const fetchData = async () => {
             isIncome: line.isIncome,
             categoryId: line.categoryId,
             categoryEmoji: line.category?.emoji || '',
+            paymentMethod: line.paymentMethod || null,
             amounts: {}
           })
         }
@@ -601,6 +628,7 @@ const newLineAmount = ref<number>(0)
 const newLineRecurrence = ref<'none' | 'monthly' | 'quarterly' | 'yearly'>('monthly')
 const newLineFromMonth = ref(1)
 const newLineToMonth = ref(12)
+const newLinePaymentMethod = ref<string | null>(null)
 const newLineCategoryId = ref<number | null>(null)
 const showNewCategory = ref(false)
 const newCategoryName = ref('')
@@ -611,6 +639,7 @@ const editLineModal = ref<HTMLDialogElement>()
 const editingLine = ref<LineDefinition | null>(null)
 const editLineName = ref('')
 const editLineCategoryId = ref<number | null>(null)
+const editLinePaymentMethod = ref<string | null>(null)
 const editLineIsIncome = ref(false)
 const editLineAmount = ref<number | null>(null)
 const editLineRecurringId = ref<number | null>(null)
@@ -630,6 +659,7 @@ const openEditLineModal = (line: LineDefinition) => {
   editingLine.value = line
   editLineName.value = line.name
   editLineCategoryId.value = line.categoryId
+  editLinePaymentMethod.value = line.paymentMethod
   editLineIsIncome.value = line.isIncome
   editLineAmount.value = null
   editLineNewRecurrence.value = ''
@@ -661,9 +691,11 @@ const saveEditLine = async () => {
   const category = categories.value.find((c: any) => c.id === newCategoryId)
   const newAmount = editLineAmount.value
 
+  const newPaymentMethod = editLinePaymentMethod.value
+
   // Update all BudgetLine records
   for (const [, entry] of Object.entries(line.amounts)) {
-    const body: any = { name: newName, categoryId: newCategoryId }
+    const body: any = { name: newName, categoryId: newCategoryId, paymentMethod: newPaymentMethod }
     if (newAmount !== null && newAmount > 0) body.amount = newAmount
     await $fetch('/api/family/' + code + '/lines/' + (entry as any).lineId, {
       method: 'PUT',
@@ -698,6 +730,7 @@ const saveEditLine = async () => {
   line.name = newName
   line.categoryId = newCategoryId
   line.categoryEmoji = category?.emoji || ''
+  line.paymentMethod = newPaymentMethod
   line.id = newName + '__' + String(line.isIncome)
   lineDefinitions.value = [...lineDefinitions.value]
 
@@ -712,6 +745,7 @@ const openAddLineModal = (isIncome: boolean) => {
   newLineRecurrence.value = 'monthly'
   newLineFromMonth.value = currentMonth
   newLineToMonth.value = 12
+  newLinePaymentMethod.value = null
   newLineCategoryId.value = null
   showNewCategory.value = false
   addLineModal.value?.showModal()
@@ -764,7 +798,8 @@ const addLine = async () => {
         name: newLineName.value,
         amount: amount || 0,
         isIncome: addingIncome.value,
-        categoryId: newLineCategoryId.value
+        categoryId: newLineCategoryId.value,
+        paymentMethod: addingIncome.value ? null : newLinePaymentMethod.value
       }
     })
   } else {
@@ -776,6 +811,7 @@ const addLine = async () => {
         amount: amount || 0,
         isIncome: addingIncome.value,
         categoryId: newLineCategoryId.value,
+        paymentMethod: addingIncome.value ? null : newLinePaymentMethod.value,
         type: newLineRecurrence.value,
         startMonth: month,
         startYear: selectedYear.value

@@ -13,6 +13,7 @@ export default defineEventHandler(async (event) => {
   if (body.amount !== undefined) data.amount = Math.abs(Number(body.amount))
   if (body.isIncome !== undefined) data.isIncome = Boolean(body.isIncome)
   if (body.categoryId !== undefined) data.categoryId = body.categoryId ? Number(body.categoryId) : null
+  if (body.paymentMethod !== undefined) data.paymentMethod = body.paymentMethod || null
 
   const line = await prisma.budgetLine.update({
     where: { id },
