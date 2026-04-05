@@ -4,6 +4,7 @@
       <div class="navbar-start gap-2">
         <a href="https://cyriongames.fr" class="btn btn-ghost btn-sm">&larr; Portail</a>
         <NuxtLink to="/" class="btn btn-ghost btn-sm">Accueil</NuxtLink>
+        <NuxtLink :to="`/family/${code}/stats`" class="btn btn-ghost btn-sm">📊 Stats</NuxtLink>
       </div>
       <div class="navbar-center">
         <h1 class="text-xl font-bold">{{ familyName }}</h1>
