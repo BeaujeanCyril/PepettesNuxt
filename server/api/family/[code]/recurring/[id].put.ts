@@ -11,6 +11,7 @@ export default defineEventHandler(async (event) => {
   if (body.amount !== undefined) data.amount = Math.abs(body.amount)
   if (body.type !== undefined) data.type = body.type
   if (body.categoryId !== undefined) data.categoryId = body.categoryId || null
+  if (body.dayOfMonth !== undefined) data.dayOfMonth = body.dayOfMonth ? Number(body.dayOfMonth) : null
 
   const updated = await prisma.recurringLine.update({
     where: { id },

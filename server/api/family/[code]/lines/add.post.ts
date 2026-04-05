@@ -3,7 +3,7 @@ import prisma from '~/server/utils/db'
 export default defineEventHandler(async (event) => {
   const code = getRouterParam(event, 'code')
   const body = await readBody(event)
-  const { budgetMonthId, name, amount, isIncome, categoryId, paymentMethod } = body
+  const { budgetMonthId, name, amount, isIncome, categoryId, paymentMethod, dayOfMonth } = body
 
   if (!code) {
     throw createError({ statusCode: 400, statusMessage: 'Code famille requis' })
@@ -20,6 +20,7 @@ export default defineEventHandler(async (event) => {
       isIncome: Boolean(isIncome),
       categoryId: categoryId ? Number(categoryId) : null,
       paymentMethod: paymentMethod || null,
+      dayOfMonth: dayOfMonth ? Number(dayOfMonth) : null,
       budgetMonthId: Number(budgetMonthId)
     },
     include: { category: true }

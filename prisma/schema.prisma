@@ -46,6 +46,7 @@ model BudgetLine {
   isIncome      Boolean     @default(false)
   paymentMethod String?     // "visa", "domiciliation", "ordre_permanent", "virement", null
   isPaid        Boolean     @default(false)
+  dayOfMonth    Int?        // jour habituel de paiement (1-31)
   categoryId    Int?
   category      Category?   @relation(fields: [categoryId], references: [id])
   budgetMonthId Int
@@ -76,6 +77,7 @@ model RecurringLine {
   isIncome      Boolean   @default(false)
   type          String    @default("monthly")
   paymentMethod String?   // "visa", "domiciliation", "ordre_permanent", "virement", null
+  dayOfMonth    Int?      // jour habituel de paiement (1-31)
   categoryId Int?
   category   Category? @relation(fields: [categoryId], references: [id])
   familyId   Int

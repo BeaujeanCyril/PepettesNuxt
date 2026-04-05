@@ -51,6 +51,7 @@ export default defineEventHandler(async (event) => {
             isIncome: recurring.isIncome,
             categoryId: recurring.categoryId,
             paymentMethod: recurring.paymentMethod,
+            dayOfMonth: recurring.dayOfMonth,
             budgetMonthId: budgetMonth.id
           }
         })

@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   const family = await prisma.family.findUnique({ where: { code } })
   if (!family) throw createError({ statusCode: 404, statusMessage: 'Famille non trouvée' })
 
-  const { name, amount, isIncome, categoryId, startMonth, startYear, type, paymentMethod } = body
+  const { name, amount, isIncome, categoryId, startMonth, startYear, type, paymentMethod, dayOfMonth } = body
 
   if (!name || amount === undefined || !startMonth || !startYear) {
     throw createError({ statusCode: 400, statusMessage: 'Champs requis: name, amount, startMonth, startYear' })
@@ -23,6 +23,7 @@ export default defineEventHandler(async (event) => {
       type: type || 'monthly',
       categoryId: categoryId || null,
       paymentMethod: paymentMethod || null,
+      dayOfMonth: dayOfMonth ? Number(dayOfMonth) : null,
       familyId: family.id,
       startMonth,
       startYear,
@@ -66,6 +67,7 @@ async function materializeRecurring(familyId: number, recurring: any, year: numb
           isIncome: recurring.isIncome,
           categoryId: recurring.categoryId,
           paymentMethod: recurring.paymentMethod,
+          dayOfMonth: recurring.dayOfMonth,
           budgetMonthId: budgetMonth.id
         }
       })

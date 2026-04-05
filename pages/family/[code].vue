@@ -97,6 +97,9 @@
                   <button class="btn btn-ghost btn-xs" @click="toggleAllCategories" :title="allCategoriesCollapsed ? 'Tout deplier' : 'Tout replier'">
                     {{ allCategoriesCollapsed ? '▶ tout' : '▼ tout' }}
                   </button>
+                  <button class="btn btn-ghost btn-xs" @click="sortByDay = !sortByDay" :class="sortByDay ? 'btn-active' : ''">
+                    📅 {{ sortByDay ? 'Par jour' : 'Par cat.' }}
+                  </button>
                   <input type="text" v-model="searchQuery"
                     class="input input-xs input-bordered bg-base-100 text-base-content w-40 font-normal text-sm"
                     placeholder="🔍 Rechercher..." />
@@ -123,6 +126,7 @@
                     <div class="flex items-center gap-1">
                       <span class="text-error/40">└</span>
                       <span class="cursor-pointer hover:underline" @click="openEditLineModal(line)">{{ line.name }}</span>
+                      <span v-if="line.dayOfMonth" class="text-xs opacity-40">{{ line.dayOfMonth }}/m</span>
                       <span v-if="line.paymentMethod === 'visa'" class="text-xs opacity-60" title="Visa">💳</span>
                       <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100" @click="deleteLine(line)">x</button>
                     </div>
@@ -206,6 +210,13 @@
           </select>
           <p v-if="newLinePaymentMethod === 'visa'" class="text-xs text-warning mt-1">💳 Les depenses Visa sont detaillees dans la categorie mais ne comptent pas dans le total. Seul le montant Visa saisi manuellement compte.</p>
         </div>
+        <div v-if="!addingIncome" class="form-control mb-3">
+          <label class="label"><span class="label-text">Jour de paiement habituel</span></label>
+          <select v-model.number="newLineDayOfMonth" class="select select-bordered">
+            <option :value="0">Non defini</option>
+            <option v-for="d in 31" :key="d" :value="d">{{ d }}</option>
+          </select>
+        </div>
         <div class="form-control mb-3">
           <label class="label"><span class="label-text">Recurrence</span></label>
           <select v-model="newLineRecurrence" class="select select-bordered">
@@ -288,6 +299,13 @@
           <label class="label"><span class="label-text">Moyen de paiement</span></label>
           <select v-model="editLinePaymentMethod" class="select select-bordered">
             <option v-for="pm in paymentMethods" :key="pm.value" :value="pm.value">{{ pm.label }}</option>
+          </select>
+        </div>
+        <div v-if="!editLineIsIncome" class="form-control mb-3">
+          <label class="label"><span class="label-text">Jour de paiement habituel</span></label>
+          <select v-model.number="editLineDayOfMonth" class="select select-bordered">
+            <option :value="0">Non defini</option>
+            <option v-for="d in 31" :key="d" :value="d">{{ d }}</option>
           </select>
         </div>
         <div class="form-control mb-3">
@@ -374,6 +392,7 @@ interface LineDefinition {
   categoryId: number | null
   categoryEmoji: string
   paymentMethod: string | null
+  dayOfMonth: number | null
   amounts: Record<number, { lineId: number; amount: number; isPaid: boolean }>
 }
 
@@ -402,6 +421,7 @@ interface ExpenseGroup {
 
 const collapsedCategories = ref(new Set<string>())
 const searchQuery = ref('')
+const sortByDay = ref(false)
 
 const expenseGroups = computed<ExpenseGroup[]>(() => {
   const q = searchQuery.value.toLowerCase().trim()
@@ -422,7 +442,13 @@ const expenseGroups = computed<ExpenseGroup[]>(() => {
     }
     groups.get(catName)!.lines.push(line)
   }
-  return Array.from(groups.values()).sort((a, b) => a.category.localeCompare(b.category))
+  const result = Array.from(groups.values()).sort((a, b) => a.category.localeCompare(b.category))
+  if (sortByDay.value) {
+    for (const g of result) {
+      g.lines.sort((a, b) => (a.dayOfMonth || 99) - (b.dayOfMonth || 99))
+    }
+  }
+  return result
 })
 
 const toggleCategory = (category: string) => {
@@ -576,6 +602,7 @@ const fetchData = async () => {
             categoryId: line.categoryId,
             categoryEmoji: line.category?.emoji || '',
             paymentMethod: line.paymentMethod || null,
+            dayOfMonth: line.dayOfMonth || null,
             amounts: {}
           })
         }
@@ -651,6 +678,7 @@ const newLineRecurrence = ref<'none' | 'monthly' | 'quarterly' | 'yearly'>('mont
 const newLineFromMonth = ref(1)
 const newLineToMonth = ref(12)
 const newLinePaymentMethod = ref('')
+const newLineDayOfMonth = ref(0)
 const newLineCategoryId = ref<number | null>(null)
 const showNewCategory = ref(false)
 const newCategoryName = ref('')
@@ -662,6 +690,7 @@ const editingLine = ref<LineDefinition | null>(null)
 const editLineName = ref('')
 const editLineCategoryId = ref<number | null>(null)
 const editLinePaymentMethod = ref('')
+const editLineDayOfMonth = ref(0)
 const editLineIsIncome = ref(false)
 const editLineAmount = ref<number | null>(null)
 const editLineRecurringId = ref<number | null>(null)
@@ -682,6 +711,7 @@ const openEditLineModal = (line: LineDefinition) => {
   editLineName.value = line.name
   editLineCategoryId.value = line.categoryId
   editLinePaymentMethod.value = line.paymentMethod || ''
+  editLineDayOfMonth.value = line.dayOfMonth || 0
   editLineIsIncome.value = line.isIncome
   editLineAmount.value = null
   editLineNewRecurrence.value = ''
@@ -714,10 +744,11 @@ const saveEditLine = async () => {
   const newAmount = editLineAmount.value
 
   const newPaymentMethod = editLinePaymentMethod.value || null
+  const newDayOfMonth = editLineDayOfMonth.value || null
 
   // Update all BudgetLine records
   for (const [, entry] of Object.entries(line.amounts)) {
-    const body: any = { name: newName, categoryId: newCategoryId, paymentMethod: newPaymentMethod }
+    const body: any = { name: newName, categoryId: newCategoryId, paymentMethod: newPaymentMethod, dayOfMonth: newDayOfMonth }
     if (newAmount !== null && newAmount > 0) body.amount = newAmount
     await $fetch('/api/family/' + code + '/lines/' + (entry as any).lineId, {
       method: 'PUT',
@@ -753,6 +784,7 @@ const saveEditLine = async () => {
   line.categoryId = newCategoryId
   line.categoryEmoji = category?.emoji || ''
   line.paymentMethod = newPaymentMethod
+  line.dayOfMonth = newDayOfMonth
   line.id = newName + '__' + String(line.isIncome)
   lineDefinitions.value = [...lineDefinitions.value]
 
@@ -768,6 +800,7 @@ const openAddLineModal = (isIncome: boolean) => {
   newLineFromMonth.value = currentMonth
   newLineToMonth.value = 12
   newLinePaymentMethod.value = ''
+  newLineDayOfMonth.value = 0
   newLineCategoryId.value = null
   showNewCategory.value = false
   addLineModal.value?.showModal()
@@ -821,7 +854,8 @@ const addLine = async () => {
         amount: amount || 0,
         isIncome: addingIncome.value,
         categoryId: newLineCategoryId.value,
-        paymentMethod: (addingIncome.value || !newLinePaymentMethod.value) ? null : newLinePaymentMethod.value
+        paymentMethod: (addingIncome.value || !newLinePaymentMethod.value) ? null : newLinePaymentMethod.value,
+        dayOfMonth: newLineDayOfMonth.value || null
       }
     })
   } else {
@@ -834,6 +868,7 @@ const addLine = async () => {
         isIncome: addingIncome.value,
         categoryId: newLineCategoryId.value,
         paymentMethod: (addingIncome.value || !newLinePaymentMethod.value) ? null : newLinePaymentMethod.value,
+        dayOfMonth: newLineDayOfMonth.value || null,
         type: newLineRecurrence.value,
         startMonth: month,
         startYear: selectedYear.value
