@@ -106,49 +106,80 @@
                 </div>
               </td>
             </tr>
-            <template v-for="group in expenseGroups" :key="group.category">
-              <!-- Category header (collapsable) -->
-              <tr class="bg-error/5 cursor-pointer select-none" @click="toggleCategory(group.category)">
-                <td class="sticky left-0 bg-error/5 z-10 font-semibold text-error">
-                  <span class="text-xs mr-1">{{ collapsedCategories.has(group.category) ? '▶' : '▼' }}</span>
-                  {{ group.emoji }} {{ group.category }}
-                  <span class="text-xs opacity-50 ml-1">({{ group.lines.length }})</span>
-                </td>
-                <td v-for="m in visibleMonths" :key="m" class="text-center font-semibold text-error/70">
-                  {{ formatAmount(getCategoryMonthTotal(group, m)) }}
-                </td>
-                <td class="text-center font-semibold text-error">{{ formatAmount(getCategoryTotalVisible(group)) }}</td>
-              </tr>
-              <!-- Lines (visible when not collapsed) -->
-              <template v-if="!collapsedCategories.has(group.category) || searchQuery">
-                <tr v-for="line in group.lines" :key="line.id" class="hover">
-                  <td class="sticky left-0 bg-base-100 z-10 pl-8">
-                    <div class="flex items-center gap-1">
-                      <span class="text-error/40">└</span>
-                      <span class="cursor-pointer hover:underline" @click="openEditLineModal(line)">{{ line.name }}</span>
-                      <span v-if="line.dayOfMonth" class="text-xs opacity-40">{{ line.dayOfMonth }}/m</span>
-                      <span v-if="line.paymentMethod === 'visa'" class="text-xs opacity-60" title="Visa">💳</span>
-                      <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100" @click="deleteLine(line)">x</button>
-                    </div>
+            <!-- VIEW: By category -->
+            <template v-if="!sortByDay">
+              <template v-for="group in expenseGroups" :key="group.category">
+                <tr class="bg-error/5 cursor-pointer select-none" @click="toggleCategory(group.category)">
+                  <td class="sticky left-0 bg-error/5 z-10 font-semibold text-error">
+                    <span class="text-xs mr-1">{{ collapsedCategories.has(group.category) ? '▶' : '▼' }}</span>
+                    {{ group.emoji }} {{ group.category }}
+                    <span class="text-xs opacity-50 ml-1">({{ group.lines.length }})</span>
                   </td>
-                  <td v-for="m in visibleMonths" :key="m" class="text-center p-0">
-                    <div class="flex items-center gap-0">
-                      <input v-if="line.amounts[m]?.lineId" type="checkbox"
-                        class="checkbox checkbox-xs checkbox-success ml-1"
-                        :checked="line.amounts[m]?.isPaid"
-                        @change="togglePaid(line, m)"
-                        title="Paye" />
-                      <input type="number" :value="getCellValue(line.id, m) || ''"
-                        class="input input-ghost input-sm w-full text-center"
-                        :class="line.amounts[m]?.isPaid ? 'text-error/40 line-through' : 'text-error'"
-                        step="0.01" min="0"
-                        @change="(e: Event) => onCellChange(line, m, e)"
-                        @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
-                    </div>
+                  <td v-for="m in visibleMonths" :key="m" class="text-center font-semibold text-error/70">
+                    {{ formatAmount(getCategoryMonthTotal(group, m)) }}
                   </td>
-                  <td class="text-center font-semibold text-error">{{ formatAmount(getLineTotalVisible(line.id)) }}</td>
+                  <td class="text-center font-semibold text-error">{{ formatAmount(getCategoryTotalVisible(group)) }}</td>
                 </tr>
+                <template v-if="!collapsedCategories.has(group.category) || searchQuery">
+                  <tr v-for="line in group.lines" :key="line.id" class="hover">
+                    <td class="sticky left-0 bg-base-100 z-10 pl-8">
+                      <div class="flex items-center gap-1">
+                        <span class="text-error/40">└</span>
+                        <span class="cursor-pointer hover:underline" @click="openEditLineModal(line)">{{ line.name }}</span>
+                        <span v-if="line.dayOfMonth" class="text-xs opacity-40">{{ line.dayOfMonth }}/m</span>
+                        <span v-if="line.paymentMethod === 'visa'" class="text-xs opacity-60" title="Visa">💳</span>
+                        <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100" @click="deleteLine(line)">x</button>
+                      </div>
+                    </td>
+                    <td v-for="m in visibleMonths" :key="m" class="text-center p-0">
+                      <div class="flex items-center gap-0">
+                        <input v-if="line.amounts[m]?.lineId" type="checkbox"
+                          class="checkbox checkbox-xs checkbox-success ml-1"
+                          :checked="line.amounts[m]?.isPaid"
+                          @change="togglePaid(line, m)"
+                          title="Paye" />
+                        <input type="number" :value="getCellValue(line.id, m) || ''"
+                          class="input input-ghost input-sm w-full text-center"
+                          :class="line.amounts[m]?.isPaid ? 'text-error/40 line-through' : 'text-error'"
+                          step="0.01" min="0"
+                          @change="(e: Event) => onCellChange(line, m, e)"
+                          @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
+                      </div>
+                    </td>
+                    <td class="text-center font-semibold text-error">{{ formatAmount(getLineTotalVisible(line.id)) }}</td>
+                  </tr>
+                </template>
               </template>
+            </template>
+            <!-- VIEW: Flat sorted by day -->
+            <template v-else>
+              <tr v-for="line in expenseLinesByDay" :key="line.id" class="hover">
+                <td class="sticky left-0 bg-base-100 z-10">
+                  <div class="flex items-center gap-1">
+                    <span class="text-xs font-mono text-base-content/40 w-6">{{ line.dayOfMonth ? String(line.dayOfMonth).padStart(2, '0') : '--' }}</span>
+                    <span class="text-xs">{{ line.categoryEmoji }}</span>
+                    <span class="cursor-pointer hover:underline" @click="openEditLineModal(line)">{{ line.name }}</span>
+                    <span v-if="line.paymentMethod === 'visa'" class="text-xs opacity-60">💳</span>
+                    <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100" @click="deleteLine(line)">x</button>
+                  </div>
+                </td>
+                <td v-for="m in visibleMonths" :key="m" class="text-center p-0">
+                  <div class="flex items-center gap-0">
+                    <input v-if="line.amounts[m]?.lineId" type="checkbox"
+                      class="checkbox checkbox-xs checkbox-success ml-1"
+                      :checked="line.amounts[m]?.isPaid"
+                      @change="togglePaid(line, m)"
+                      title="Paye" />
+                    <input type="number" :value="getCellValue(line.id, m) || ''"
+                      class="input input-ghost input-sm w-full text-center"
+                      :class="line.amounts[m]?.isPaid ? 'text-error/40 line-through' : 'text-error'"
+                      step="0.01" min="0"
+                      @change="(e: Event) => onCellChange(line, m, e)"
+                      @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
+                  </div>
+                </td>
+                <td class="text-center font-semibold text-error">{{ formatAmount(getLineTotalVisible(line.id)) }}</td>
+              </tr>
             </template>
             <tr class="border-t-2 border-error/30 bg-error/5">
               <td class="font-bold text-error sticky left-0 bg-error/5 z-10">Total depenses</td>
@@ -429,6 +460,19 @@ interface ExpenseGroup {
 const collapsedCategories = ref(new Set<string>())
 const searchQuery = ref('')
 const sortByDay = ref(false)
+
+const expenseLinesByDay = computed(() => {
+  const q = searchQuery.value.toLowerCase().trim()
+  let lines = expenseLines.value
+  if (q) {
+    lines = lines.filter(l => {
+      const nameMatch = l.name.toLowerCase().includes(q)
+      const amountMatch = Object.values(l.amounts).some(a => String(a.amount).includes(q))
+      return nameMatch || amountMatch
+    })
+  }
+  return [...lines].sort((a, b) => (a.dayOfMonth || 99) - (b.dayOfMonth || 99))
+})
 
 const expenseGroups = computed<ExpenseGroup[]>(() => {
   const q = searchQuery.value.toLowerCase().trim()
