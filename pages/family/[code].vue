@@ -26,10 +26,14 @@
           <span class="text-2xl font-bold min-w-[80px] text-center">{{ selectedYear }}</span>
           <button class="btn btn-circle btn-sm" @click="changeYear(1)">&raquo;</button>
         </div>
-        <div class="join">
-          <button class="btn btn-sm join-item" :class="viewMonths === 3 ? 'btn-primary' : 'btn-ghost'" @click="viewMonths = 3">3 mois</button>
-          <button class="btn btn-sm join-item" :class="viewMonths === 6 ? 'btn-primary' : 'btn-ghost'" @click="viewMonths = 6">6 mois</button>
-          <button class="btn btn-sm join-item" :class="viewMonths === (13 - currentMonth) ? 'btn-primary' : 'btn-ghost'" @click="viewMonths = 13 - currentMonth">Fin d'annee</button>
+        <div class="flex items-center gap-2">
+          <button class="btn btn-circle btn-sm" @click="shiftMonths(-1)" :disabled="startMonth <= 1">&larr;</button>
+          <div class="join">
+            <button class="btn btn-sm join-item" :class="viewSize === 6 ? 'btn-primary' : 'btn-ghost'" @click="setView(6)">6 mois</button>
+            <button class="btn btn-sm join-item" :class="viewSize === 'rest' ? 'btn-primary' : 'btn-ghost'" @click="setView('rest')">Fin d'annee</button>
+            <button class="btn btn-sm join-item" :class="viewSize === 12 ? 'btn-primary' : 'btn-ghost'" @click="setView(12)">Annee</button>
+          </div>
+          <button class="btn btn-circle btn-sm" @click="shiftMonths(1)" :disabled="startMonth + viewCount > 12">&rarr;</button>
         </div>
       </div>
       <div ref="tableContainer" class="overflow-x-auto bg-base-100 rounded-xl shadow-lg">
@@ -313,16 +317,34 @@ const currentMonth = new Date().getMonth() + 1
 const currentMonthEl = ref<HTMLElement | null>(null)
 const tableContainer = ref<HTMLElement | null>(null)
 const incomeCollapsed = ref(true)
-const viewMonths = ref(6)
+const startMonth = ref(currentMonth)
+const viewSize = ref<6 | 12 | 'rest'>(6)
+
+const viewCount = computed(() => {
+  if (viewSize.value === 12) return 12
+  if (viewSize.value === 'rest') return 13 - startMonth.value
+  return Math.min(viewSize.value as number, 13 - startMonth.value)
+})
 
 const visibleMonths = computed(() => {
   const months = []
-  for (let i = 0; i < viewMonths.value; i++) {
-    const m = currentMonth + i
-    if (m <= 12) months.push(m)
+  for (let i = 0; i < viewCount.value; i++) {
+    const m = startMonth.value + i
+    if (m >= 1 && m <= 12) months.push(m)
   }
   return months
 })
+
+const setView = (size: 6 | 12 | 'rest') => {
+  viewSize.value = size
+  if (size === 12) startMonth.value = 1
+  else if (size === 'rest') startMonth.value = currentMonth
+}
+
+const shiftMonths = (delta: number) => {
+  const next = startMonth.value + delta
+  if (next >= 1 && next <= 12) startMonth.value = next
+}
 
 interface LineDefinition {
   id: string
