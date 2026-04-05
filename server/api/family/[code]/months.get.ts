@@ -87,5 +87,11 @@ function isMonthInRange(year: number, month: number, recurring: any): boolean {
   if (recurring.type === 'yearly') {
     return month === recurring.startMonth
   }
+  // Quarterly: every 3 months from start month
+  if (recurring.type === 'quarterly') {
+    const start = recurring.startYear * 12 + recurring.startMonth
+    const current = year * 12 + month
+    return (current - start) % 3 === 0
+  }
   return true
 }

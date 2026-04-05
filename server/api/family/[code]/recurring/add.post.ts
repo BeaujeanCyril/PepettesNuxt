@@ -83,5 +83,10 @@ function shouldMaterialize(year: number, month: number, recurring: any): boolean
   if (recurring.type === 'yearly') {
     return month === recurring.startMonth
   }
+  // Quarterly: every 3 months from start month
+  if (recurring.type === 'quarterly') {
+    const diff = (current - start)
+    return diff % 3 === 0
+  }
   return true
 }

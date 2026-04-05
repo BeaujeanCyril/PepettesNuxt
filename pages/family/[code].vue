@@ -32,7 +32,7 @@
           <button class="btn btn-sm join-item" :class="viewMode === 'year' ? 'btn-primary' : 'btn-ghost'" @click="viewMode = 'year'">Annee</button>
         </div>
       </div>
-      <div class="overflow-x-auto bg-base-100 rounded-xl shadow-lg">
+      <div ref="tableContainer" class="overflow-x-auto bg-base-100 rounded-xl shadow-lg">
         <table class="table table-sm table-pin-cols">
           <thead>
             <tr class="bg-base-200">
@@ -65,7 +65,7 @@
                 <td class="sticky left-0 bg-base-100 z-10">
                   <div class="flex items-center gap-1">
                     <span class="text-success">{{ line.categoryEmoji }}</span>
-                    <span>{{ line.name }}</span>
+                    <span class="cursor-pointer hover:underline" @click="openEditLineModal(line)">{{ line.name }}</span>
                     <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100" @click="deleteLine(line)">x</button>
                   </div>
                 </td>
@@ -110,7 +110,7 @@
                   <td class="sticky left-0 bg-base-100 z-10 pl-8">
                     <div class="flex items-center gap-1">
                       <span class="text-error/40">└</span>
-                      <span>{{ line.name }}</span>
+                      <span class="cursor-pointer hover:underline" @click="openEditLineModal(line)">{{ line.name }}</span>
                       <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100" @click="deleteLine(line)">x</button>
                     </div>
                   </td>
@@ -183,14 +183,22 @@
           <select v-model="newLineRecurrence" class="select select-bordered">
             <option value="none">Ponctuel</option>
             <option value="monthly">Mensuel</option>
+            <option value="quarterly">Trimestriel</option>
             <option value="yearly">Annuel</option>
           </select>
         </div>
         <div v-if="newLineRecurrence === 'none' || newLineRecurrence === 'yearly'" class="form-control mb-3">
-          <label class="label"><span class="label-text">Mois</span></label>
+          <label class="label"><span class="label-text">Mois concerne</span></label>
           <select v-model.number="newLineFromMonth" class="select select-bordered">
             <option v-for="m in visibleMonths" :key="m" :value="m">{{ monthNames[m - 1] }}</option>
           </select>
+        </div>
+        <div v-if="newLineRecurrence === 'quarterly'" class="form-control mb-3">
+          <label class="label"><span class="label-text">Premier mois</span></label>
+          <select v-model.number="newLineFromMonth" class="select select-bordered">
+            <option v-for="m in visibleMonths" :key="m" :value="m">{{ monthNames[m - 1] }}</option>
+          </select>
+          <p class="text-xs text-base-content/50 mt-1">Puis tous les 3 mois ({{ monthNames[newLineFromMonth - 1] }}, {{ monthNames[((newLineFromMonth - 1 + 3) % 12)] }}, {{ monthNames[((newLineFromMonth - 1 + 6) % 12)] }}, {{ monthNames[((newLineFromMonth - 1 + 9) % 12)] }})</p>
         </div>
         <div v-if="newLineRecurrence === 'monthly'" class="form-control mb-3">
           <label class="label"><span class="label-text">A partir de</span></label>
@@ -228,6 +236,39 @@
       </div>
       <form method="dialog" class="modal-backdrop"><button>close</button></form>
     </dialog>
+
+    <!-- Edit line modal -->
+    <dialog ref="editLineModal" class="modal">
+      <div class="modal-box">
+        <h3 class="font-bold text-lg mb-4">Modifier la ligne</h3>
+        <div class="form-control mb-3">
+          <label class="label"><span class="label-text">Nom</span></label>
+          <input v-model="editLineName" type="text" class="input input-bordered" />
+        </div>
+        <div class="form-control mb-3">
+          <label class="label"><span class="label-text">Categorie</span></label>
+          <select v-model="editLineCategoryId" class="select select-bordered">
+            <option :value="null">Aucune</option>
+            <option v-for="cat in categories" :key="cat.id" :value="cat.id">
+              {{ cat.emoji }} {{ cat.name }}
+            </option>
+          </select>
+        </div>
+        <div class="form-control mb-3">
+          <label class="label"><span class="label-text">Type</span></label>
+          <div class="flex gap-2">
+            <span class="badge" :class="editLineIsIncome ? 'badge-success' : 'badge-error'">
+              {{ editLineIsIncome ? 'Revenu' : 'Depense' }}
+            </span>
+          </div>
+        </div>
+        <div class="modal-action">
+          <button class="btn btn-ghost" @click="editLineModal?.close()">Annuler</button>
+          <button class="btn btn-primary" @click="saveEditLine">Enregistrer</button>
+        </div>
+      </div>
+      <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
   </div>
 </template>
 
@@ -245,6 +286,7 @@ const familyName = ref('')
 const categories = ref<any[]>([])
 const currentMonth = new Date().getMonth() + 1
 const currentMonthEl = ref<HTMLElement | null>(null)
+const tableContainer = ref<HTMLElement | null>(null)
 const incomeCollapsed = ref(true)
 const viewMode = ref<'S1' | 'S2' | 'year'>(currentMonth <= 6 ? 'S1' : 'S2')
 
@@ -466,13 +508,57 @@ const addLineModal = ref<HTMLDialogElement>()
 const addingIncome = ref(false)
 const newLineName = ref('')
 const newLineAmount = ref<number>(0)
-const newLineRecurrence = ref<'none' | 'monthly' | 'yearly'>('monthly')
+const newLineRecurrence = ref<'none' | 'monthly' | 'quarterly' | 'yearly'>('monthly')
 const newLineFromMonth = ref(1)
 const newLineToMonth = ref(12)
 const newLineCategoryId = ref<number | null>(null)
 const showNewCategory = ref(false)
 const newCategoryName = ref('')
 const newCategoryEmoji = ref('')
+
+// Edit line
+const editLineModal = ref<HTMLDialogElement>()
+const editingLine = ref<LineDefinition | null>(null)
+const editLineName = ref('')
+const editLineCategoryId = ref<number | null>(null)
+const editLineIsIncome = ref(false)
+
+const openEditLineModal = (line: LineDefinition) => {
+  editingLine.value = line
+  editLineName.value = line.name
+  editLineCategoryId.value = line.categoryId
+  editLineIsIncome.value = line.isIncome
+  editLineModal.value?.showModal()
+}
+
+const saveEditLine = async () => {
+  if (!editingLine.value || !editLineName.value) return
+  const line = editingLine.value
+  const oldName = line.name
+  const newName = editLineName.value
+  const newCategoryId = editLineCategoryId.value
+  const category = categories.value.find((c: any) => c.id === newCategoryId)
+
+  // Update all BudgetLine records for this line definition
+  for (const [, entry] of Object.entries(line.amounts)) {
+    await $fetch('/api/family/' + code + '/lines/' + (entry as any).lineId, {
+      method: 'PUT',
+      body: {
+        name: newName,
+        categoryId: newCategoryId
+      }
+    })
+  }
+
+  // Update local state
+  line.name = newName
+  line.categoryId = newCategoryId
+  line.categoryEmoji = category?.emoji || ''
+  line.id = newName + '__' + String(line.isIncome)
+  lineDefinitions.value = [...lineDefinitions.value]
+
+  editLineModal.value?.close()
+}
 
 const openAddLineModal = (isIncome: boolean) => {
   addingIncome.value = isIncome
@@ -537,7 +623,7 @@ const addLine = async () => {
       }
     })
   } else {
-    // Recurring (monthly or yearly)
+    // Recurring (monthly, quarterly, or yearly)
     await $fetch('/api/family/' + code + '/recurring/add', {
       method: 'POST',
       body: {
@@ -570,8 +656,13 @@ onMounted(async () => {
   if (hasAccess.value) {
     await fetchData()
     await nextTick()
-    if (currentMonthEl.value) {
-      currentMonthEl.value.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+    if (currentMonthEl.value && tableContainer.value) {
+      // Scroll so current month is the first visible column (after the sticky label column)
+      const containerRect = tableContainer.value.getBoundingClientRect()
+      const monthRect = currentMonthEl.value.getBoundingClientRect()
+      const stickyColWidth = 200 // min-w-[200px] of the label column
+      const scrollLeft = monthRect.left - containerRect.left - stickyColWidth + tableContainer.value.scrollLeft
+      tableContainer.value.scrollTo({ left: Math.max(0, scrollLeft), behavior: 'smooth' })
     }
   }
 })
