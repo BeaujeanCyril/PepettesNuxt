@@ -243,6 +243,7 @@ const selectedYear = ref(new Date().getFullYear())
 const loadingData = ref(true)
 const familyName = ref('')
 const categories = ref<any[]>([])
+const currentMonth = new Date().getMonth() + 1
 const currentMonthEl = ref<HTMLElement | null>(null)
 const incomeCollapsed = ref(true)
 const viewMode = ref<'S1' | 'S2' | 'year'>(currentMonth <= 6 ? 'S1' : 'S2')
@@ -472,8 +473,6 @@ const newLineCategoryId = ref<number | null>(null)
 const showNewCategory = ref(false)
 const newCategoryName = ref('')
 const newCategoryEmoji = ref('')
-
-const currentMonth = new Date().getMonth() + 1
 
 const openAddLineModal = (isIncome: boolean) => {
   addingIncome.value = isIncome
