@@ -93,6 +93,9 @@
               <td :colspan="visibleMonths.length + 2" class="font-bold text-error text-lg sticky left-0 bg-error/10 z-10">
                 DEPENSES
                 <button class="btn btn-ghost btn-xs ml-2" @click="openAddLineModal(false)">+</button>
+                <button class="btn btn-ghost btn-xs ml-1" @click="toggleAllCategories" :title="allCategoriesCollapsed ? 'Tout deplier' : 'Tout replier'">
+                  {{ allCategoriesCollapsed ? '▶ tout' : '▼ tout' }}
+                </button>
               </td>
             </tr>
             <template v-for="group in expenseGroups" :key="group.category">
@@ -390,6 +393,18 @@ const toggleCategory = (category: string) => {
   if (next.has(category)) next.delete(category)
   else next.add(category)
   collapsedCategories.value = next
+}
+
+const allCategoriesCollapsed = computed(() => {
+  return expenseGroups.value.length > 0 && expenseGroups.value.every(g => collapsedCategories.value.has(g.category))
+})
+
+const toggleAllCategories = () => {
+  if (allCategoriesCollapsed.value) {
+    collapsedCategories.value = new Set()
+  } else {
+    collapsedCategories.value = new Set(expenseGroups.value.map(g => g.category))
+  }
 }
 
 const getCategoryMonthTotal = (group: ExpenseGroup, month: number): number => {
