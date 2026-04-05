@@ -374,7 +374,7 @@ interface LineDefinition {
 }
 
 const paymentMethods = [
-  { value: null, label: 'Compte courant' },
+  { value: '', label: 'Compte courant' },
   { value: 'visa', label: '💳 Visa' },
   { value: 'domiciliation', label: '🏦 Domiciliation' },
   { value: 'ordre_permanent', label: '🔄 Ordre permanent' },
@@ -628,7 +628,7 @@ const newLineAmount = ref<number>(0)
 const newLineRecurrence = ref<'none' | 'monthly' | 'quarterly' | 'yearly'>('monthly')
 const newLineFromMonth = ref(1)
 const newLineToMonth = ref(12)
-const newLinePaymentMethod = ref<string | null>(null)
+const newLinePaymentMethod = ref('')
 const newLineCategoryId = ref<number | null>(null)
 const showNewCategory = ref(false)
 const newCategoryName = ref('')
@@ -639,7 +639,7 @@ const editLineModal = ref<HTMLDialogElement>()
 const editingLine = ref<LineDefinition | null>(null)
 const editLineName = ref('')
 const editLineCategoryId = ref<number | null>(null)
-const editLinePaymentMethod = ref<string | null>(null)
+const editLinePaymentMethod = ref('')
 const editLineIsIncome = ref(false)
 const editLineAmount = ref<number | null>(null)
 const editLineRecurringId = ref<number | null>(null)
@@ -659,7 +659,7 @@ const openEditLineModal = (line: LineDefinition) => {
   editingLine.value = line
   editLineName.value = line.name
   editLineCategoryId.value = line.categoryId
-  editLinePaymentMethod.value = line.paymentMethod
+  editLinePaymentMethod.value = line.paymentMethod || ''
   editLineIsIncome.value = line.isIncome
   editLineAmount.value = null
   editLineNewRecurrence.value = ''
@@ -691,7 +691,7 @@ const saveEditLine = async () => {
   const category = categories.value.find((c: any) => c.id === newCategoryId)
   const newAmount = editLineAmount.value
 
-  const newPaymentMethod = editLinePaymentMethod.value
+  const newPaymentMethod = editLinePaymentMethod.value || null
 
   // Update all BudgetLine records
   for (const [, entry] of Object.entries(line.amounts)) {
@@ -745,7 +745,7 @@ const openAddLineModal = (isIncome: boolean) => {
   newLineRecurrence.value = 'monthly'
   newLineFromMonth.value = currentMonth
   newLineToMonth.value = 12
-  newLinePaymentMethod.value = null
+  newLinePaymentMethod.value = ''
   newLineCategoryId.value = null
   showNewCategory.value = false
   addLineModal.value?.showModal()
@@ -799,7 +799,7 @@ const addLine = async () => {
         amount: amount || 0,
         isIncome: addingIncome.value,
         categoryId: newLineCategoryId.value,
-        paymentMethod: addingIncome.value ? null : newLinePaymentMethod.value
+        paymentMethod: (addingIncome.value || !newLinePaymentMethod.value) ? null : newLinePaymentMethod.value
       }
     })
   } else {
@@ -811,7 +811,7 @@ const addLine = async () => {
         amount: amount || 0,
         isIncome: addingIncome.value,
         categoryId: newLineCategoryId.value,
-        paymentMethod: addingIncome.value ? null : newLinePaymentMethod.value,
+        paymentMethod: (addingIncome.value || !newLinePaymentMethod.value) ? null : newLinePaymentMethod.value,
         type: newLineRecurrence.value,
         startMonth: month,
         startYear: selectedYear.value
