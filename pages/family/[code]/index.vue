@@ -609,8 +609,9 @@ const getCategoryTotalVisible = (group: any): number => {
 const getSoldeCompte = (month: number): number => {
   const manual = manualSoldes.value[month]
   if (manual !== null && manual !== undefined) return r2(manual)
-  const prev = month <= 1 ? 0 : getSoldeCompte(month - 1)
-  return r2(prev + getMonthBalance(month))
+  // Projection: apres depenses du mois precedent + revenus du mois courant
+  if (month <= 1) return 0
+  return r2(getAfterExpenses(month - 1) + getMonthIncome(month))
 }
 
 const totalIncomeVisible = computed(() => {
