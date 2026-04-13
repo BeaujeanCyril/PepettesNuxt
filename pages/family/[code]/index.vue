@@ -195,21 +195,10 @@
               <td class="text-center text-sm font-semibold text-warning">{{ formatAmount(totalVisaVisible) }}</td>
             </tr>
             <tr><td :colspan="visibleMonths.length + 2" class="h-2 p-0"></td></tr>
-            <tr class="bg-base-200 border-t-2">
-              <td class="font-bold text-lg sticky left-0 bg-base-200 z-10">SOLDE DU MOIS</td>
-              <td v-for="m in visibleMonths" :key="m" class="text-center font-bold text-lg"
-                :class="getMonthBalance(m) >= 0 ? 'text-success' : 'text-error'">
-                {{ formatAmount(getMonthBalance(m)) }}
-              </td>
-              <td class="text-center font-bold text-lg"
-                :class="totalBalanceVisible >= 0 ? 'text-success' : 'text-error'">
-                {{ formatAmount(totalBalanceVisible) }}
-              </td>
-            </tr>
             <tr class="bg-base-300 border-t-2">
               <td class="font-bold text-xl sticky left-0 bg-base-300 z-10">
                 SOLDE COMPTE
-                <span class="text-xs font-normal opacity-50 block">Editable — base de projection</span>
+                <span class="text-xs font-normal opacity-50 block">Editable — montant actuel</span>
               </td>
               <td v-for="m in visibleMonths" :key="m" class="text-center p-0">
                 <input type="number"
@@ -223,6 +212,20 @@
               <td class="text-center font-bold text-xl"
                 :class="getSoldeCompte(visibleMonths[visibleMonths.length - 1]) >= 0 ? 'text-success' : 'text-error'">
                 {{ formatAmount(getSoldeCompte(visibleMonths[visibleMonths.length - 1])) }}
+              </td>
+            </tr>
+            <tr class="bg-base-200">
+              <td class="font-bold text-lg sticky left-0 bg-base-200 z-10">
+                APRES DEPENSES
+                <span class="text-xs font-normal opacity-50 block">Solde compte - reste a payer</span>
+              </td>
+              <td v-for="m in visibleMonths" :key="m" class="text-center font-bold text-lg"
+                :class="getAfterExpenses(m) >= 0 ? 'text-success' : 'text-error'">
+                {{ formatAmount(getAfterExpenses(m)) }}
+              </td>
+              <td class="text-center font-bold text-lg"
+                :class="getAfterExpenses(visibleMonths[visibleMonths.length - 1]) >= 0 ? 'text-success' : 'text-error'">
+                {{ formatAmount(getAfterExpenses(visibleMonths[visibleMonths.length - 1])) }}
               </td>
             </tr>
           </tbody>
@@ -556,6 +559,11 @@ const getMonthBalance = (month: number): number => {
   return r2(getMonthIncome(month) - getMonthExpenseUnpaid(month))
 }
 
+// Solde compte - depenses restant a payer
+const getAfterExpenses = (month: number): number => {
+  return r2(getSoldeCompte(month) - getMonthExpenseUnpaid(month))
+}
+
 const getMonthVisaTotal = (month: number): number => {
   return r2(expenseLines.value
     .filter(l => l.paymentMethod === 'visa')
@@ -613,7 +621,6 @@ const totalExpenseVisible = computed(() => {
   return visibleMonths.value.reduce((sum, m) => sum + getMonthExpense(m), 0)
 })
 
-const totalBalanceVisible = computed(() => totalIncomeVisible.value - totalExpenseVisible.value)
 
 const getLineTotalVisible = (lineDefId: string): number => {
   const line = lineDefinitions.value.find(l => l.id === lineDefId)
