@@ -544,8 +544,16 @@ const getMonthExpense = (month: number): number => {
     .reduce((sum, l) => sum + (l.amounts[month]?.amount || 0), 0))
 }
 
+// Depenses restant a payer (exclut les payees)
+const getMonthExpenseUnpaid = (month: number): number => {
+  return r2(expenseLines.value
+    .filter(l => l.paymentMethod !== 'visa')
+    .filter(l => !l.amounts[month]?.isPaid)
+    .reduce((sum, l) => sum + (l.amounts[month]?.amount || 0), 0))
+}
+
 const getMonthBalance = (month: number): number => {
-  return r2(getMonthIncome(month) - getMonthExpense(month))
+  return r2(getMonthIncome(month) - getMonthExpenseUnpaid(month))
 }
 
 const getMonthVisaTotal = (month: number): number => {
