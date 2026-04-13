@@ -11,7 +11,7 @@ datasource db {
 
 model Family {
   id              Int           @id @default(autoincrement())
-  keycloakUserId  String        @unique  // Keycloak sub (UUID)
+  keycloakUserId  String?       @unique  // Keycloak sub (UUID)
   code            String?       @unique  // Legacy, kept for backward compat
   name            String
   createdAt       DateTime      @default(now())
