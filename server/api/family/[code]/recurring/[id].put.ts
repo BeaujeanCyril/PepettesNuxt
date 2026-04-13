@@ -1,3 +1,4 @@
+import { findFamily } from '~/server/utils/family'
 import prisma from '~/server/utils/db'
 
 export default defineEventHandler(async (event) => {

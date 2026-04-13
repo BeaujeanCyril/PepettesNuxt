@@ -1,3 +1,4 @@
+import { findFamily } from '~/server/utils/family'
 import prisma from '~/server/utils/db'
 
 export default defineEventHandler(async (event) => {
@@ -6,7 +7,7 @@ export default defineEventHandler(async (event) => {
 
   if (!code) throw createError({ statusCode: 400, statusMessage: 'Code requis' })
 
-  const family = await prisma.family.findUnique({ where: { code } })
+  const family = await findFamily(code!)
   if (!family) throw createError({ statusCode: 404, statusMessage: 'Famille non trouvée' })
 
   const { year, month } = body
