@@ -639,9 +639,9 @@ const formatAmount = (amount: number): string => {
 const fetchData = async () => {
   loadingData.value = true
   try {
-    const family = await $fetch('/api/family/join', {
+    const family = await $fetch('/api/family/me', {
       method: 'POST',
-      body: { code }
+      body: { keycloakUserId: code, name: user.value?.name ? `Budget de ${user.value.name}` : 'Mon budget' }
     })
     familyName.value = (family as any).name
 
