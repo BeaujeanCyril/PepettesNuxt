@@ -75,11 +75,19 @@
                   </div>
                 </td>
                 <td v-for="m in visibleMonths" :key="m" class="text-center p-0">
-                  <input type="number" :value="getCellValue(line.id, m) || ''"
-                    class="input input-ghost input-sm w-full text-center text-success"
-                    step="0.01" min="0"
-                    @change="(e: Event) => onCellChange(line, m, e)"
-                    @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
+                  <div class="flex items-center gap-0">
+                    <input v-if="line.amounts[m]?.lineId" type="checkbox"
+                      class="checkbox checkbox-xs checkbox-success ml-1"
+                      :checked="line.amounts[m]?.isPaid"
+                      @change="togglePaid(line, m)"
+                      title="Reçu" />
+                    <input type="number" :value="getCellValue(line.id, m) || ''"
+                      class="input input-ghost input-sm w-full text-center"
+                      :class="line.amounts[m]?.isPaid ? 'text-success/40 line-through' : 'text-success'"
+                      step="0.01" min="0"
+                      @change="(e: Event) => onCellChange(line, m, e)"
+                      @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
+                  </div>
                 </td>
                 <td class="text-center font-semibold text-success">{{ formatAmount(getLineTotalVisible(line.id)) }}</td>
               </tr>
@@ -541,6 +549,14 @@ const getMonthIncome = (month: number): number => {
   return r2(incomeLines.value.reduce((sum, l) => sum + (l.amounts[month]?.amount || 0), 0))
 }
 
+// Revenus du mois pas encore reçus (isPaid=false). C'est ce qui doit s'ajouter
+// au manualSolde pour projeter le solde de fin de mois.
+const getMonthIncomeUnreceived = (month: number): number => {
+  return r2(incomeLines.value
+    .filter(l => !l.amounts[month]?.isPaid)
+    .reduce((sum, l) => sum + (l.amounts[month]?.amount || 0), 0))
+}
+
 const getMonthExpense = (month: number): number => {
   return r2(expenseLines.value
     .filter(l => l.paymentMethod !== 'visa')
@@ -559,9 +575,10 @@ const getMonthBalance = (month: number): number => {
   return r2(getMonthIncome(month) - getMonthExpenseUnpaid(month))
 }
 
-// Solde compte - depenses restant a payer
+// Projection de fin de mois :
+// solde compte (réel) + revenus à venir (non encore reçus) − dépenses à payer
 const getAfterExpenses = (month: number): number => {
-  return r2(getSoldeCompte(month) - getMonthExpenseUnpaid(month))
+  return r2(getSoldeCompte(month) + getMonthIncomeUnreceived(month) - getMonthExpenseUnpaid(month))
 }
 
 const getMonthVisaTotal = (month: number): number => {
@@ -605,13 +622,14 @@ const getCategoryTotalVisible = (group: any): number => {
   return r2(visibleMonths.value.reduce((sum, m) => sum + getCategoryMonthTotal(group, m), 0))
 }
 
-// Solde compte: manual if set, otherwise projection from previous + balance
+// Solde compte : valeur manuelle si saisie (norme du quotidien),
+// sinon projection = "Après dépenses" du mois précédent (qui inclut déjà
+// revenus à venir et dépenses à payer du mois précédent).
 const getSoldeCompte = (month: number): number => {
   const manual = manualSoldes.value[month]
   if (manual !== null && manual !== undefined) return r2(manual)
-  // Projection: apres depenses du mois precedent + revenus du mois courant
   if (month <= 1) return 0
-  return r2(getAfterExpenses(month - 1) + getMonthIncome(month))
+  return r2(getAfterExpenses(month - 1))
 }
 
 const totalIncomeVisible = computed(() => {
