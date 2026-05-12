@@ -372,7 +372,7 @@
                 </h3>
               </div>
               <h3 v-else class="font-bold text-error">DEPENSES</h3>
-              <div class="flex items-center gap-1">
+              <div class="flex items-center gap-2">
                 <button
                   type="button"
                   class="btn btn-ghost btn-xs"
@@ -380,7 +380,10 @@
                   :title="sortByDay ? 'Vue par catégorie' : 'Vue par jour'"
                   @click="sortByDay = !sortByDay"
                 >📅 {{ sortByDay ? 'Jour' : 'Cat.' }}</button>
-                <span class="font-semibold text-error">{{ formatAmount(getMonthExpense(mobileMonth)) }}</span>
+                <span class="text-sm text-error tabular-nums">
+                  <strong>{{ formatAmount(getMonthExpenseUnpaid(mobileMonth)) }}</strong>
+                  <span class="opacity-50"> / {{ formatAmount(getMonthExpense(mobileMonth)) }}</span>
+                </span>
               </div>
             </div>
 
@@ -449,8 +452,9 @@
                   <span class="inline-block w-3">{{ collapsedCategories.has(g.category) ? '▶' : '▼' }}</span>
                   {{ g.emoji }} {{ g.category }}
                 </span>
-                <span class="text-xs opacity-70 tabular-nums">
-                  {{ formatAmount(getCategoryMonthUnpaidTotal(g, mobileMonth)) }} / {{ formatAmount(getCategoryMonthTotal(g, mobileMonth)) }}
+                <span class="text-xs tabular-nums">
+                  <strong>{{ formatAmount(getCategoryMonthUnpaidTotal(g, mobileMonth)) }}</strong>
+                  <span class="opacity-50"> / {{ formatAmount(getCategoryMonthTotal(g, mobileMonth)) }}</span>
                 </span>
               </button>
               <ul v-if="!collapsedCategories.has(g.category)" class="divide-y divide-base-300 pl-3">
