@@ -359,8 +359,19 @@
         <!-- DEPENSES grouped by category -->
         <div class="card bg-error/10 shadow">
           <div class="card-body py-3 px-3 gap-1">
-            <div class="flex items-center justify-between mb-1 gap-2 flex-wrap">
-              <h3 class="font-bold text-error">DEPENSES</h3>
+            <div class="flex items-center justify-between mb-1 gap-2">
+              <div
+                v-if="!sortByDay"
+                class="flex items-center cursor-pointer select-none"
+                :title="allCategoriesCollapsed ? 'Tout déplier' : 'Tout replier'"
+                @click="toggleAllCategories"
+              >
+                <h3 class="font-bold text-error">
+                  <span class="inline-block w-3 text-sm">{{ allCategoriesCollapsed ? '▶' : '▼' }}</span>
+                  DEPENSES
+                </h3>
+              </div>
+              <h3 v-else class="font-bold text-error">DEPENSES</h3>
               <div class="flex items-center gap-1">
                 <button
                   type="button"
@@ -369,13 +380,6 @@
                   :title="sortByDay ? 'Vue par catégorie' : 'Vue par jour'"
                   @click="sortByDay = !sortByDay"
                 >📅 {{ sortByDay ? 'Jour' : 'Cat.' }}</button>
-                <button
-                  v-if="!sortByDay && mobileExpenseGroups.length"
-                  type="button"
-                  class="btn btn-ghost btn-xs"
-                  @click="toggleAllCategories"
-                  :title="allCategoriesCollapsed ? 'Tout déplier' : 'Tout replier'"
-                >{{ allCategoriesCollapsed ? '▶ tout' : '▼ tout' }}</button>
                 <span class="font-semibold text-error">{{ formatAmount(getMonthExpense(mobileMonth)) }}</span>
               </div>
             </div>
