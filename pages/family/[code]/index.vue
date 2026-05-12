@@ -15,7 +15,9 @@
         >
           {{ viewMode === 'mobile' ? '🖥️' : '📱' }}
         </button>
-        <button class="btn btn-ghost btn-sm btn-square" title="Déconnexion" @click="logout">⏻</button>
+        <button class="btn btn-ghost btn-sm btn-square" title="Déconnexion" @click="logout">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
       </div>
     </div>
     <div v-if="isLoading || loadingData" class="flex items-center justify-center h-64">
@@ -251,7 +253,6 @@
         <button class="btn btn-circle btn-sm" @click="mobilePrevMonth">◀</button>
         <div class="text-center">
           <div class="text-lg font-bold">{{ monthNames[mobileMonth - 1] }} {{ selectedYear }}</div>
-          <div class="text-[10px] opacity-60">Glisse ← → pour changer de mois</div>
         </div>
         <button class="btn btn-circle btn-sm" @click="mobileNextMonth">▶</button>
       </div>
@@ -351,19 +352,82 @@
         <!-- DEPENSES grouped by category -->
         <div class="card bg-error/10 shadow">
           <div class="card-body py-3 px-3 gap-1">
-            <div class="flex items-center justify-between mb-1 gap-2">
+            <div class="flex items-center justify-between mb-1 gap-2 flex-wrap">
               <h3 class="font-bold text-error">DEPENSES</h3>
-              <button
-                v-if="mobileExpenseGroups.length"
-                type="button"
-                class="btn btn-ghost btn-xs"
-                @click="toggleAllCategories"
-                :title="allCategoriesCollapsed ? 'Tout déplier' : 'Tout replier'"
-              >{{ allCategoriesCollapsed ? '▶ tout' : '▼ tout' }}</button>
-              <span class="font-semibold text-error">{{ formatAmount(getMonthExpense(mobileMonth)) }}</span>
+              <div class="flex items-center gap-1">
+                <button
+                  type="button"
+                  class="btn btn-ghost btn-xs"
+                  :class="sortByDay ? 'btn-active' : ''"
+                  :title="sortByDay ? 'Vue par catégorie' : 'Vue par jour'"
+                  @click="sortByDay = !sortByDay"
+                >📅 {{ sortByDay ? 'Jour' : 'Cat.' }}</button>
+                <button
+                  v-if="!sortByDay && mobileExpenseGroups.length"
+                  type="button"
+                  class="btn btn-ghost btn-xs"
+                  @click="toggleAllCategories"
+                  :title="allCategoriesCollapsed ? 'Tout déplier' : 'Tout replier'"
+                >{{ allCategoriesCollapsed ? '▶ tout' : '▼ tout' }}</button>
+                <span class="font-semibold text-error">{{ formatAmount(getMonthExpense(mobileMonth)) }}</span>
+              </div>
             </div>
-            <div v-if="!mobileExpenseGroups.length" class="text-sm opacity-60 py-2">Aucune dépense pour ce mois.</div>
-            <div v-for="g in mobileExpenseGroups" :key="g.category" class="mb-1">
+
+            <!-- Vue par jour (plate) -->
+            <template v-if="sortByDay">
+              <div v-if="!mobileExpenseLinesByDay.length" class="text-sm opacity-60 py-2">Aucune dépense pour ce mois.</div>
+              <ul v-else class="divide-y divide-base-300">
+                <li v-for="line in mobileExpenseLinesByDay" :key="line.id" class="flex items-center gap-2 py-2 min-w-0">
+                  <span class="text-xs font-mono opacity-50 w-6 shrink-0">{{ line.dayOfMonth ? String(line.dayOfMonth).padStart(2, '0') : '--' }}</span>
+                  <input
+                    v-if="line.amounts[mobileMonth]?.lineId"
+                    type="checkbox"
+                    class="checkbox checkbox-sm checkbox-success shrink-0"
+                    :checked="line.amounts[mobileMonth]?.isPaid"
+                    @change="togglePaid(line, mobileMonth)"
+                    title="Payé"
+                  />
+                  <span v-else class="w-5 h-5 shrink-0"></span>
+                  <span
+                    class="flex-1 min-w-0 truncate text-sm select-none"
+                    :class="line.amounts[mobileMonth]?.isPaid ? 'opacity-40 line-through' : 'text-error'"
+                    title="Double-tap pour éditer"
+                    @dblclick="openEditLineModal(line)"
+                  >
+                    {{ line.name }}
+                    <span v-if="line.paymentMethod === 'visa'" class="text-xs ml-1" title="Visa">💳</span>
+                  </span>
+                  <input
+                    v-if="isMobileEditing(line.id, mobileMonth)"
+                    type="number"
+                    data-mobile-edit="active"
+                    :value="getCellValue(line.id, mobileMonth) || ''"
+                    class="input input-bordered input-xs w-20 text-right shrink-0"
+                    step="0.01"
+                    min="0"
+                    @change="(e: Event) => onCellChange(line, mobileMonth, e)"
+                    @blur="endMobileEdit"
+                    @keyup.enter="(e: Event) => (e.target as HTMLInputElement).blur()"
+                    @keyup.escape="endMobileEdit"
+                  />
+                  <span
+                    v-else
+                    class="shrink-0 px-2 py-1 rounded text-right tabular-nums text-sm min-w-[5rem] select-none"
+                    :class="line.amounts[mobileMonth]?.isPaid ? 'opacity-40 line-through' : ''"
+                    title="Double-tap pour éditer la valeur"
+                    @dblclick="startMobileEdit(line.id, mobileMonth)"
+                  >
+                    {{ getCellValue(line.id, mobileMonth) ? formatAmount(getCellValue(line.id, mobileMonth)) : '—' }}
+                  </span>
+                  <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100 shrink-0" @click="deleteLine(line)">×</button>
+                </li>
+              </ul>
+            </template>
+
+            <!-- Vue par catégorie (groupée) -->
+            <template v-else>
+              <div v-if="!mobileExpenseGroups.length" class="text-sm opacity-60 py-2">Aucune dépense pour ce mois.</div>
+              <div v-for="g in mobileExpenseGroups" :key="g.category" class="mb-1">
               <button
                 type="button"
                 class="w-full flex items-center justify-between py-1 text-left"
@@ -421,6 +485,7 @@
                 </li>
               </ul>
             </div>
+            </template>
           </div>
         </div>
       </div>
@@ -615,8 +680,20 @@ const startMonth = ref(currentMonth)
 const viewSize = ref<6 | 12 | 'rest'>(6)
 
 // === MOBILE VIEW (rendu parallèle, ne touche pas au desktop) ===
+const VIEW_MODE_KEY = 'pepettes-view-mode'
 const viewMode = ref<'desktop' | 'mobile'>('desktop')
 const mobileMonth = ref<number>(currentMonth)
+
+if (typeof window !== 'undefined') {
+  const saved = window.localStorage.getItem(VIEW_MODE_KEY)
+  if (saved === 'mobile' || saved === 'desktop') viewMode.value = saved
+}
+
+watch(viewMode, (v) => {
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(VIEW_MODE_KEY, v)
+  }
+})
 
 // Sur mobile, on n'affiche que les dépenses qui ont une valeur pour le mois courant
 const mobileExpenseGroups = computed(() => {
@@ -626,6 +703,15 @@ const mobileExpenseGroups = computed(() => {
       lines: g.lines.filter(l => (l.amounts[mobileMonth.value]?.amount || 0) > 0)
     }))
     .filter(g => g.lines.length > 0)
+})
+
+// Vue plate par jour, filtrée sur le mois courant
+const mobileExpenseLinesByDay = computed(() => {
+  return expenseLines.value
+    .filter(l => l.paymentMethod !== 'visa')
+    .filter(l => (l.amounts[mobileMonth.value]?.amount || 0) > 0)
+    .slice()
+    .sort((a, b) => (a.dayOfMonth || 99) - (b.dayOfMonth || 99))
 })
 const editingMobileCell = ref<{ lineId: string; month: number } | null>(null)
 
