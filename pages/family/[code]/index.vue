@@ -1,25 +1,21 @@
 <template>
   <div class="min-h-screen bg-base-200">
-    <div class="navbar bg-base-100 shadow-md px-4">
-      <div class="navbar-start gap-2">
-        <a href="https://cyriongames.fr" class="btn btn-ghost btn-sm">&larr; Portail</a>
-        <NuxtLink to="/" class="btn btn-ghost btn-sm">Accueil</NuxtLink>
-        <NuxtLink :to="`/family/${code}/stats`" class="btn btn-ghost btn-sm">📊 Stats</NuxtLink>
-      </div>
-      <div class="navbar-center">
-        <h1 class="text-xl font-bold">{{ familyName }}</h1>
+    <div class="navbar bg-base-100 shadow-md px-2 min-h-0 py-1">
+      <div class="navbar-start gap-1">
+        <a href="https://cyriongames.fr" class="btn btn-ghost btn-sm btn-square" title="Portail">🌐</a>
+        <NuxtLink to="/" class="btn btn-ghost btn-sm btn-square" title="Accueil">🏠</NuxtLink>
+        <NuxtLink :to="`/family/${code}/stats`" class="btn btn-ghost btn-sm btn-square" title="Statistiques">📊</NuxtLink>
       </div>
       <div class="navbar-end gap-1">
         <button
-          class="btn btn-sm"
+          class="btn btn-sm btn-square"
           :class="viewMode === 'mobile' ? 'btn-primary' : 'btn-outline'"
-          @click="viewMode = viewMode === 'mobile' ? 'desktop' : 'mobile'"
           :title="viewMode === 'mobile' ? 'Passer en mode Bureau' : 'Passer en mode Mobile'"
+          @click="viewMode = viewMode === 'mobile' ? 'desktop' : 'mobile'"
         >
           {{ viewMode === 'mobile' ? '🖥️' : '📱' }}
         </button>
-        <span v-if="user" class="text-sm text-base-content/60 mr-2 hidden sm:inline">{{ user.name }}</span>
-        <button class="btn btn-ghost btn-sm" @click="logout">Deconnexion</button>
+        <button class="btn btn-ghost btn-sm btn-square" title="Déconnexion" @click="logout">⏻</button>
       </div>
     </div>
     <div v-if="isLoading || loadingData" class="flex items-center justify-center h-64">
@@ -272,10 +268,10 @@
               <span class="text-sm opacity-70">💼 Solde compte</span>
               <input
                 type="number"
-                :value="manualSoldes[mobileMonth] ?? ''"
+                :value="getSoldeCompte(mobileMonth) || ''"
                 class="input input-bordered input-sm w-32 text-right"
+                :class="getSoldeCompte(mobileMonth) >= 0 ? 'text-success' : 'text-error'"
                 step="0.01"
-                placeholder="auto"
                 @change="onSoldeCompteChange(mobileMonth, $event)"
                 @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()"
               />
@@ -355,12 +351,19 @@
         <!-- DEPENSES grouped by category -->
         <div class="card bg-error/10 shadow">
           <div class="card-body py-3 px-3 gap-1">
-            <div class="flex items-center justify-between mb-1">
+            <div class="flex items-center justify-between mb-1 gap-2">
               <h3 class="font-bold text-error">DEPENSES</h3>
+              <button
+                v-if="mobileExpenseGroups.length"
+                type="button"
+                class="btn btn-ghost btn-xs"
+                @click="toggleAllCategories"
+                :title="allCategoriesCollapsed ? 'Tout déplier' : 'Tout replier'"
+              >{{ allCategoriesCollapsed ? '▶ tout' : '▼ tout' }}</button>
               <span class="font-semibold text-error">{{ formatAmount(getMonthExpense(mobileMonth)) }}</span>
             </div>
-            <div v-if="!expenseGroups.length" class="text-sm opacity-60 py-2">Aucune dépense. Tap "+ Dépense" en bas.</div>
-            <div v-for="g in expenseGroups" :key="g.category" class="mb-1">
+            <div v-if="!mobileExpenseGroups.length" class="text-sm opacity-60 py-2">Aucune dépense pour ce mois.</div>
+            <div v-for="g in mobileExpenseGroups" :key="g.category" class="mb-1">
               <button
                 type="button"
                 class="w-full flex items-center justify-between py-1 text-left"
@@ -429,14 +432,16 @@
       >
         <button
           type="button"
-          class="flex-1 min-w-0 basis-0 bg-error text-error-content rounded-lg py-2 text-sm font-semibold active:bg-error/80"
+          class="flex-1 min-w-0 basis-0 bg-error text-error-content rounded-lg py-2 text-xl font-bold active:bg-error/80"
+          title="Ajouter une dépense"
           @click="openAddLineModal(false)"
-        >+ Dépense</button>
+        >−</button>
         <button
           type="button"
-          class="flex-1 min-w-0 basis-0 bg-success text-success-content rounded-lg py-2 text-sm font-semibold active:bg-success/80"
+          class="flex-1 min-w-0 basis-0 bg-success text-success-content rounded-lg py-2 text-xl font-bold active:bg-success/80"
+          title="Ajouter un revenu"
           @click="openAddLineModal(true)"
-        >+ Revenu</button>
+        >+</button>
       </div>
     </div>
 
@@ -612,6 +617,16 @@ const viewSize = ref<6 | 12 | 'rest'>(6)
 // === MOBILE VIEW (rendu parallèle, ne touche pas au desktop) ===
 const viewMode = ref<'desktop' | 'mobile'>('desktop')
 const mobileMonth = ref<number>(currentMonth)
+
+// Sur mobile, on n'affiche que les dépenses qui ont une valeur pour le mois courant
+const mobileExpenseGroups = computed(() => {
+  return expenseGroups.value
+    .map(g => ({
+      ...g,
+      lines: g.lines.filter(l => (l.amounts[mobileMonth.value]?.amount || 0) > 0)
+    }))
+    .filter(g => g.lines.length > 0)
+})
 const editingMobileCell = ref<{ lineId: string; month: number } | null>(null)
 
 function startMobileEdit(lineId: string, month: number) {
