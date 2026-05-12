@@ -449,7 +449,9 @@
                   <span class="inline-block w-3">{{ collapsedCategories.has(g.category) ? '▶' : '▼' }}</span>
                   {{ g.emoji }} {{ g.category }}
                 </span>
-                <span class="text-xs opacity-70">{{ formatAmount(getCategoryMonthTotal(g, mobileMonth)) }}</span>
+                <span class="text-xs opacity-70 tabular-nums">
+                  {{ formatAmount(getCategoryMonthUnpaidTotal(g, mobileMonth)) }} / {{ formatAmount(getCategoryMonthTotal(g, mobileMonth)) }}
+                </span>
               </button>
               <ul v-if="!collapsedCategories.has(g.category)" class="divide-y divide-base-300 pl-3">
                 <li v-for="line in g.lines" :key="line.id" class="flex items-center gap-2 py-2 min-w-0">
@@ -988,6 +990,13 @@ const onSoldeCompteChange = async (month: number, event: Event) => {
 
 const getCategoryMonthTotal = (group: any, month: number): number => {
   return r2(group.lines.reduce((sum: number, l: LineDefinition) => sum + (l.amounts[month]?.amount || 0), 0))
+}
+
+const getCategoryMonthUnpaidTotal = (group: any, month: number): number => {
+  return r2(group.lines.reduce((sum: number, l: LineDefinition) => {
+    const a = l.amounts[month]
+    return sum + (a && !a.isPaid ? a.amount : 0)
+  }, 0))
 }
 
 const getCategoryTotalVisible = (group: any): number => {
