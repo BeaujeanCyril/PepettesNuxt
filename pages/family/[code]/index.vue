@@ -442,6 +442,7 @@
               <button
                 type="button"
                 class="w-full flex items-center justify-between py-1 text-left"
+                :class="isCategoryFullyPaid(g, mobileMonth) ? 'opacity-40 line-through' : ''"
                 @click="toggleCategory(g.category)"
               >
                 <span class="text-sm font-semibold">
@@ -715,6 +716,13 @@ const mobileExpenseGroups = computed(() => {
     }))
     .filter(g => g.lines.length > 0)
 })
+
+// Toutes les lignes d'une catégorie pour le mois courant sont-elles cochées (payées) ?
+function isCategoryFullyPaid(g: { lines: LineDefinition[] }, month: number): boolean {
+  const lines = g.lines.filter(l => (l.amounts[month]?.amount || 0) > 0)
+  if (!lines.length) return false
+  return lines.every(l => l.amounts[month]?.isPaid)
+}
 
 // Vue plate par jour, filtrée sur le mois courant
 const mobileExpenseLinesByDay = computed(() => {
