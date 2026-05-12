@@ -250,7 +250,7 @@
     </div>
 
     <!-- ===== MOBILE VIEW ===== -->
-    <div v-else class="pb-24">
+    <div v-else class="pb-24 overflow-x-hidden">
       <div class="bg-base-100 sticky top-0 z-10 shadow flex items-center justify-between px-3 py-2">
         <button class="btn btn-circle btn-sm" @click="mobilePrevMonth">◀</button>
         <div class="text-center">
@@ -306,7 +306,7 @@
             </div>
             <div v-if="!incomeLines.length" class="text-sm opacity-60 py-2">Aucun revenu. Tap "+ Revenu" en bas.</div>
             <ul v-else class="divide-y divide-base-300">
-              <li v-for="line in incomeLines" :key="line.id" class="flex items-center gap-2 py-2">
+              <li v-for="line in incomeLines" :key="line.id" class="flex items-center gap-2 py-2 min-w-0">
                 <input
                   v-if="line.amounts[mobileMonth]?.lineId"
                   type="checkbox"
@@ -317,21 +317,34 @@
                 />
                 <span v-else class="w-5 h-5 shrink-0"></span>
                 <span
-                  class="flex-1 min-w-0 text-sm cursor-pointer hover:underline"
+                  class="flex-1 min-w-0 truncate text-sm cursor-pointer hover:underline"
                   :class="line.amounts[mobileMonth]?.isPaid ? 'opacity-40 line-through' : 'text-success'"
                   @click="openEditLineModal(line)"
                 >
                   <span class="text-xs mr-1">{{ line.categoryEmoji }}</span>{{ line.name }}
                 </span>
                 <input
+                  v-if="isMobileEditing(line.id, mobileMonth)"
                   type="number"
+                  data-mobile-edit="active"
                   :value="getCellValue(line.id, mobileMonth) || ''"
                   class="input input-bordered input-xs w-20 text-right shrink-0"
                   step="0.01"
                   min="0"
                   @change="(e: Event) => onCellChange(line, mobileMonth, e)"
-                  @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()"
+                  @blur="endMobileEdit"
+                  @keyup.enter="(e: Event) => (e.target as HTMLInputElement).blur()"
+                  @keyup.escape="endMobileEdit"
                 />
+                <button
+                  v-else
+                  type="button"
+                  class="shrink-0 px-2 py-1 rounded text-right tabular-nums text-sm min-w-[5rem] hover:bg-base-200"
+                  :class="line.amounts[mobileMonth]?.isPaid ? 'opacity-40 line-through' : ''"
+                  @click="startMobileEdit(line.id, mobileMonth)"
+                >
+                  {{ getCellValue(line.id, mobileMonth) ? formatAmount(getCellValue(line.id, mobileMonth)) : '—' }}
+                </button>
                 <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100 shrink-0" @click="deleteLine(line)">×</button>
               </li>
             </ul>
@@ -359,7 +372,7 @@
                 <span class="text-xs opacity-70">{{ formatAmount(getCategoryMonthTotal(g, mobileMonth)) }}</span>
               </button>
               <ul v-if="!collapsedCategories.has(g.category)" class="divide-y divide-base-300 pl-3">
-                <li v-for="line in g.lines" :key="line.id" class="flex items-center gap-2 py-2">
+                <li v-for="line in g.lines" :key="line.id" class="flex items-center gap-2 py-2 min-w-0">
                   <input
                     v-if="line.amounts[mobileMonth]?.lineId"
                     type="checkbox"
@@ -370,7 +383,7 @@
                   />
                   <span v-else class="w-5 h-5 shrink-0"></span>
                   <span
-                    class="flex-1 min-w-0 text-sm cursor-pointer hover:underline"
+                    class="flex-1 min-w-0 truncate text-sm cursor-pointer hover:underline"
                     :class="line.amounts[mobileMonth]?.isPaid ? 'opacity-40 line-through' : 'text-error'"
                     @click="openEditLineModal(line)"
                   >
@@ -378,14 +391,27 @@
                     <span v-if="line.paymentMethod === 'visa'" class="text-xs ml-1" title="Visa">💳</span>
                   </span>
                   <input
+                    v-if="isMobileEditing(line.id, mobileMonth)"
                     type="number"
+                    data-mobile-edit="active"
                     :value="getCellValue(line.id, mobileMonth) || ''"
                     class="input input-bordered input-xs w-20 text-right shrink-0"
                     step="0.01"
                     min="0"
                     @change="(e: Event) => onCellChange(line, mobileMonth, e)"
-                    @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()"
+                    @blur="endMobileEdit"
+                    @keyup.enter="(e: Event) => (e.target as HTMLInputElement).blur()"
+                    @keyup.escape="endMobileEdit"
                   />
+                  <button
+                    v-else
+                    type="button"
+                    class="shrink-0 px-2 py-1 rounded text-right tabular-nums text-sm min-w-[5rem] hover:bg-base-200"
+                    :class="line.amounts[mobileMonth]?.isPaid ? 'opacity-40 line-through' : ''"
+                    @click="startMobileEdit(line.id, mobileMonth)"
+                  >
+                    {{ getCellValue(line.id, mobileMonth) ? formatAmount(getCellValue(line.id, mobileMonth)) : '—' }}
+                  </button>
                   <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100 shrink-0" @click="deleteLine(line)">×</button>
                 </li>
               </ul>
@@ -396,11 +422,11 @@
 
       <!-- Bottom bar -->
       <div
-        class="fixed bottom-0 left-0 right-0 bg-base-100 border-t-2 border-primary/30 z-20 grid grid-cols-2 gap-2 p-2"
+        class="fixed bottom-0 left-0 right-0 bg-base-100 border-t-2 border-primary/30 z-20 flex gap-2 p-2 max-w-full"
         style="padding-bottom: env(safe-area-inset-bottom);"
       >
-        <button class="btn btn-error btn-sm" @click="openAddLineModal(false)">+ Dépense</button>
-        <button class="btn btn-success btn-sm" @click="openAddLineModal(true)">+ Revenu</button>
+        <button class="btn btn-error btn-sm flex-1 min-w-0" @click="openAddLineModal(false)">+ Dépense</button>
+        <button class="btn btn-success btn-sm flex-1 min-w-0" @click="openAddLineModal(true)">+ Revenu</button>
       </div>
     </div>
 
@@ -576,6 +602,22 @@ const viewSize = ref<6 | 12 | 'rest'>(6)
 // === MOBILE VIEW (rendu parallèle, ne touche pas au desktop) ===
 const viewMode = ref<'desktop' | 'mobile'>('desktop')
 const mobileMonth = ref<number>(currentMonth)
+const editingMobileCell = ref<{ lineId: string; month: number } | null>(null)
+
+function startMobileEdit(lineId: string, month: number) {
+  editingMobileCell.value = { lineId, month }
+  // Focus l'input après le rendu
+  nextTick(() => {
+    const el = document.querySelector<HTMLInputElement>('[data-mobile-edit="active"]')
+    if (el) { el.focus(); el.select() }
+  })
+}
+function isMobileEditing(lineId: string, month: number): boolean {
+  return editingMobileCell.value?.lineId === lineId && editingMobileCell.value?.month === month
+}
+function endMobileEdit() {
+  editingMobileCell.value = null
+}
 
 function mobilePrevMonth() {
   if (mobileMonth.value <= 1) {
