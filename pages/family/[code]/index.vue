@@ -297,12 +297,19 @@
         <!-- REVENUS -->
         <div class="card bg-success/10 shadow">
           <div class="card-body py-3 px-3 gap-1">
-            <div class="flex items-center justify-between mb-1">
-              <h3 class="font-bold text-success">REVENUS</h3>
+            <button
+              type="button"
+              class="flex items-center justify-between mb-1 w-full select-none"
+              @click="incomeCollapsed = !incomeCollapsed"
+            >
+              <h3 class="font-bold text-success">
+                <span class="inline-block w-3 text-sm">{{ incomeCollapsed ? '▶' : '▼' }}</span>
+                REVENUS
+              </h3>
               <span class="font-semibold text-success">{{ formatAmount(getMonthIncome(mobileMonth)) }}</span>
-            </div>
-            <div v-if="!incomeLines.length" class="text-sm opacity-60 py-2">Aucun revenu. Tap "+ Revenu" en bas.</div>
-            <ul v-else class="divide-y divide-base-300">
+            </button>
+            <div v-if="!incomeCollapsed && !incomeLines.length" class="text-sm opacity-60 py-2">Aucun revenu. Tap "+ Revenu" en bas.</div>
+            <ul v-if="!incomeCollapsed && incomeLines.length" class="divide-y divide-base-300">
               <li v-for="line in incomeLines" :key="line.id" class="flex items-center gap-2 py-2 min-w-0">
                 <input
                   v-if="line.amounts[mobileMonth]?.lineId"
