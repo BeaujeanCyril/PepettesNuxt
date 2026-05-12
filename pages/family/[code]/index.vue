@@ -9,8 +9,16 @@
       <div class="navbar-center">
         <h1 class="text-xl font-bold">{{ familyName }}</h1>
       </div>
-      <div class="navbar-end">
-        <span v-if="user" class="text-sm text-base-content/60 mr-2">{{ user.name }}</span>
+      <div class="navbar-end gap-1">
+        <button
+          class="btn btn-sm"
+          :class="viewMode === 'mobile' ? 'btn-primary' : 'btn-outline'"
+          @click="viewMode = viewMode === 'mobile' ? 'desktop' : 'mobile'"
+          :title="viewMode === 'mobile' ? 'Passer en mode Bureau' : 'Passer en mode Mobile'"
+        >
+          {{ viewMode === 'mobile' ? '🖥️' : '📱' }}
+        </button>
+        <span v-if="user" class="text-sm text-base-content/60 mr-2 hidden sm:inline">{{ user.name }}</span>
         <button class="btn btn-ghost btn-sm" @click="logout">Deconnexion</button>
       </div>
     </div>
@@ -20,7 +28,7 @@
     <div v-else-if="!hasAccess" class="flex items-center justify-center h-64">
       <div class="alert alert-warning max-w-md"><span>Acces non autorise.</span></div>
     </div>
-    <div v-else class="p-4 max-w-[1600px] mx-auto">
+    <div v-else-if="viewMode === 'desktop'" class="p-4 max-w-[1600px] mx-auto">
       <div class="flex flex-col items-center gap-3 mb-6">
         <div class="flex items-center gap-4">
           <button class="btn btn-circle btn-sm" @click="changeYear(-1)">&laquo;</button>
@@ -240,6 +248,162 @@
         </table>
       </div>
     </div>
+
+    <!-- ===== MOBILE VIEW ===== -->
+    <div v-else class="pb-24">
+      <div class="bg-base-100 sticky top-0 z-10 shadow flex items-center justify-between px-3 py-2">
+        <button class="btn btn-circle btn-sm" @click="mobilePrevMonth">◀</button>
+        <div class="text-center">
+          <div class="text-lg font-bold">{{ monthNames[mobileMonth - 1] }} {{ selectedYear }}</div>
+          <div class="text-[10px] opacity-60">Glisse ← → pour changer de mois</div>
+        </div>
+        <button class="btn btn-circle btn-sm" @click="mobileNextMonth">▶</button>
+      </div>
+
+      <div
+        @touchstart="onMobileTouchStart"
+        @touchend="onMobileTouchEnd"
+        class="p-3 space-y-3"
+      >
+        <!-- Solde compte + projection -->
+        <div class="card bg-base-100 shadow">
+          <div class="card-body py-3 px-4 gap-2">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-sm opacity-70">💼 Solde compte</span>
+              <input
+                type="number"
+                :value="manualSoldes[mobileMonth] ?? ''"
+                class="input input-bordered input-sm w-32 text-right"
+                step="0.01"
+                placeholder="auto"
+                @change="onSoldeCompteChange(mobileMonth, $event)"
+                @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()"
+              />
+            </div>
+            <div class="flex items-center justify-between gap-2 text-sm">
+              <span class="opacity-70">📈 Revenus à venir</span>
+              <span class="text-success">+ {{ formatAmount(getMonthIncomeUnreceived(mobileMonth)) }}</span>
+            </div>
+            <div class="flex items-center justify-between gap-2 text-sm">
+              <span class="opacity-70">📉 Dépenses à payer</span>
+              <span class="text-error">- {{ formatAmount(getMonthExpenseUnpaid(mobileMonth)) }}</span>
+            </div>
+            <div class="flex items-center justify-between gap-2 pt-1 border-t border-base-300">
+              <span class="font-bold">= Après dépenses</span>
+              <span class="font-bold text-lg" :class="getAfterExpenses(mobileMonth) < 0 ? 'text-error' : 'text-success'">
+                {{ formatAmount(getAfterExpenses(mobileMonth)) }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- REVENUS -->
+        <div class="card bg-success/10 shadow">
+          <div class="card-body py-3 px-3 gap-1">
+            <div class="flex items-center justify-between mb-1">
+              <h3 class="font-bold text-success">REVENUS</h3>
+              <span class="font-semibold text-success">{{ formatAmount(getMonthIncome(mobileMonth)) }}</span>
+            </div>
+            <div v-if="!incomeLines.length" class="text-sm opacity-60 py-2">Aucun revenu. Tap "+ Revenu" en bas.</div>
+            <ul v-else class="divide-y divide-base-300">
+              <li v-for="line in incomeLines" :key="line.id" class="flex items-center gap-2 py-2">
+                <input
+                  v-if="line.amounts[mobileMonth]?.lineId"
+                  type="checkbox"
+                  class="checkbox checkbox-sm checkbox-success shrink-0"
+                  :checked="line.amounts[mobileMonth]?.isPaid"
+                  @change="togglePaid(line, mobileMonth)"
+                  title="Reçu"
+                />
+                <span v-else class="w-5 h-5 shrink-0"></span>
+                <span
+                  class="flex-1 min-w-0 text-sm cursor-pointer hover:underline"
+                  :class="line.amounts[mobileMonth]?.isPaid ? 'opacity-40 line-through' : 'text-success'"
+                  @click="openEditLineModal(line)"
+                >
+                  <span class="text-xs mr-1">{{ line.categoryEmoji }}</span>{{ line.name }}
+                </span>
+                <input
+                  type="number"
+                  :value="getCellValue(line.id, mobileMonth) || ''"
+                  class="input input-bordered input-xs w-20 text-right shrink-0"
+                  step="0.01"
+                  min="0"
+                  @change="(e: Event) => onCellChange(line, mobileMonth, e)"
+                  @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()"
+                />
+                <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100 shrink-0" @click="deleteLine(line)">×</button>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- DEPENSES grouped by category -->
+        <div class="card bg-error/10 shadow">
+          <div class="card-body py-3 px-3 gap-1">
+            <div class="flex items-center justify-between mb-1">
+              <h3 class="font-bold text-error">DEPENSES</h3>
+              <span class="font-semibold text-error">{{ formatAmount(getMonthExpense(mobileMonth)) }}</span>
+            </div>
+            <div v-if="!expenseGroups.length" class="text-sm opacity-60 py-2">Aucune dépense. Tap "+ Dépense" en bas.</div>
+            <div v-for="g in expenseGroups" :key="g.category" class="mb-1">
+              <button
+                type="button"
+                class="w-full flex items-center justify-between py-1 text-left"
+                @click="toggleCategory(g.category)"
+              >
+                <span class="text-sm font-semibold">
+                  <span class="inline-block w-3">{{ collapsedCategories.has(g.category) ? '▶' : '▼' }}</span>
+                  {{ g.emoji }} {{ g.category }}
+                </span>
+                <span class="text-xs opacity-70">{{ formatAmount(getCategoryMonthTotal(g, mobileMonth)) }}</span>
+              </button>
+              <ul v-if="!collapsedCategories.has(g.category)" class="divide-y divide-base-300 pl-3">
+                <li v-for="line in g.lines" :key="line.id" class="flex items-center gap-2 py-2">
+                  <input
+                    v-if="line.amounts[mobileMonth]?.lineId"
+                    type="checkbox"
+                    class="checkbox checkbox-sm checkbox-success shrink-0"
+                    :checked="line.amounts[mobileMonth]?.isPaid"
+                    @change="togglePaid(line, mobileMonth)"
+                    title="Payé"
+                  />
+                  <span v-else class="w-5 h-5 shrink-0"></span>
+                  <span
+                    class="flex-1 min-w-0 text-sm cursor-pointer hover:underline"
+                    :class="line.amounts[mobileMonth]?.isPaid ? 'opacity-40 line-through' : 'text-error'"
+                    @click="openEditLineModal(line)"
+                  >
+                    {{ line.name }}
+                    <span v-if="line.paymentMethod === 'visa'" class="text-xs ml-1" title="Visa">💳</span>
+                  </span>
+                  <input
+                    type="number"
+                    :value="getCellValue(line.id, mobileMonth) || ''"
+                    class="input input-bordered input-xs w-20 text-right shrink-0"
+                    step="0.01"
+                    min="0"
+                    @change="(e: Event) => onCellChange(line, mobileMonth, e)"
+                    @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()"
+                  />
+                  <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100 shrink-0" @click="deleteLine(line)">×</button>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom bar -->
+      <div
+        class="fixed bottom-0 left-0 right-0 bg-base-100 border-t-2 border-primary/30 z-20 grid grid-cols-2 gap-2 p-2"
+        style="padding-bottom: env(safe-area-inset-bottom);"
+      >
+        <button class="btn btn-error btn-sm" @click="openAddLineModal(false)">+ Dépense</button>
+        <button class="btn btn-success btn-sm" @click="openAddLineModal(true)">+ Revenu</button>
+      </div>
+    </div>
+
     <dialog ref="addLineModal" class="modal">
       <div class="modal-box">
         <h3 class="font-bold text-lg mb-4">
@@ -408,6 +572,42 @@ const tableContainer = ref<HTMLElement | null>(null)
 const incomeCollapsed = ref(true)
 const startMonth = ref(currentMonth)
 const viewSize = ref<6 | 12 | 'rest'>(6)
+
+// === MOBILE VIEW (rendu parallèle, ne touche pas au desktop) ===
+const viewMode = ref<'desktop' | 'mobile'>('desktop')
+const mobileMonth = ref<number>(currentMonth)
+
+function mobilePrevMonth() {
+  if (mobileMonth.value <= 1) {
+    // Wrap to previous year
+    selectedYear.value -= 1
+    mobileMonth.value = 12
+    fetchData()
+  } else {
+    mobileMonth.value -= 1
+  }
+}
+function mobileNextMonth() {
+  if (mobileMonth.value >= 12) {
+    selectedYear.value += 1
+    mobileMonth.value = 1
+    fetchData()
+  } else {
+    mobileMonth.value += 1
+  }
+}
+
+// Swipe horizontal pour changer de mois
+let touchStartX = 0
+function onMobileTouchStart(e: TouchEvent) {
+  touchStartX = e.touches[0].clientX
+}
+function onMobileTouchEnd(e: TouchEvent) {
+  const dx = e.changedTouches[0].clientX - touchStartX
+  if (Math.abs(dx) < 60) return
+  if (dx < 0) mobileNextMonth()
+  else mobilePrevMonth()
+}
 
 const viewCount = computed(() => {
   if (viewSize.value === 12) return 12
