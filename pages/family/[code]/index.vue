@@ -317,9 +317,10 @@
                 />
                 <span v-else class="w-5 h-5 shrink-0"></span>
                 <span
-                  class="flex-1 min-w-0 truncate text-sm cursor-pointer hover:underline"
+                  class="flex-1 min-w-0 truncate text-sm select-none"
                   :class="line.amounts[mobileMonth]?.isPaid ? 'opacity-40 line-through' : 'text-success'"
-                  @click="openEditLineModal(line)"
+                  title="Double-tap pour éditer"
+                  @dblclick="openEditLineModal(line)"
                 >
                   <span class="text-xs mr-1">{{ line.categoryEmoji }}</span>{{ line.name }}
                 </span>
@@ -336,15 +337,15 @@
                   @keyup.enter="(e: Event) => (e.target as HTMLInputElement).blur()"
                   @keyup.escape="endMobileEdit"
                 />
-                <button
+                <span
                   v-else
-                  type="button"
-                  class="shrink-0 px-2 py-1 rounded text-right tabular-nums text-sm min-w-[5rem] hover:bg-base-200"
+                  class="shrink-0 px-2 py-1 rounded text-right tabular-nums text-sm min-w-[5rem] select-none"
                   :class="line.amounts[mobileMonth]?.isPaid ? 'opacity-40 line-through' : ''"
-                  @click="startMobileEdit(line.id, mobileMonth)"
+                  title="Double-tap pour éditer la valeur"
+                  @dblclick="startMobileEdit(line.id, mobileMonth)"
                 >
                   {{ getCellValue(line.id, mobileMonth) ? formatAmount(getCellValue(line.id, mobileMonth)) : '—' }}
-                </button>
+                </span>
                 <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100 shrink-0" @click="deleteLine(line)">×</button>
               </li>
             </ul>
@@ -383,9 +384,10 @@
                   />
                   <span v-else class="w-5 h-5 shrink-0"></span>
                   <span
-                    class="flex-1 min-w-0 truncate text-sm cursor-pointer hover:underline"
+                    class="flex-1 min-w-0 truncate text-sm select-none"
                     :class="line.amounts[mobileMonth]?.isPaid ? 'opacity-40 line-through' : 'text-error'"
-                    @click="openEditLineModal(line)"
+                    title="Double-tap pour éditer"
+                    @dblclick="openEditLineModal(line)"
                   >
                     {{ line.name }}
                     <span v-if="line.paymentMethod === 'visa'" class="text-xs ml-1" title="Visa">💳</span>
@@ -403,15 +405,15 @@
                     @keyup.enter="(e: Event) => (e.target as HTMLInputElement).blur()"
                     @keyup.escape="endMobileEdit"
                   />
-                  <button
+                  <span
                     v-else
-                    type="button"
-                    class="shrink-0 px-2 py-1 rounded text-right tabular-nums text-sm min-w-[5rem] hover:bg-base-200"
+                    class="shrink-0 px-2 py-1 rounded text-right tabular-nums text-sm min-w-[5rem] select-none"
                     :class="line.amounts[mobileMonth]?.isPaid ? 'opacity-40 line-through' : ''"
-                    @click="startMobileEdit(line.id, mobileMonth)"
+                    title="Double-tap pour éditer la valeur"
+                    @dblclick="startMobileEdit(line.id, mobileMonth)"
                   >
                     {{ getCellValue(line.id, mobileMonth) ? formatAmount(getCellValue(line.id, mobileMonth)) : '—' }}
-                  </button>
+                  </span>
                   <button class="btn btn-ghost btn-xs opacity-30 hover:opacity-100 shrink-0" @click="deleteLine(line)">×</button>
                 </li>
               </ul>
@@ -420,13 +422,21 @@
         </div>
       </div>
 
-      <!-- Bottom bar -->
+      <!-- Bottom bar (boutons natifs pour éviter le min-width imposé par DaisyUI btn) -->
       <div
-        class="fixed bottom-0 left-0 right-0 bg-base-100 border-t-2 border-primary/30 z-20 flex gap-2 p-2 max-w-full"
+        class="fixed bottom-0 left-0 right-0 bg-base-100 border-t-2 border-primary/30 z-20 flex gap-2 p-2"
         style="padding-bottom: env(safe-area-inset-bottom);"
       >
-        <button class="btn btn-error btn-sm flex-1 min-w-0" @click="openAddLineModal(false)">+ Dépense</button>
-        <button class="btn btn-success btn-sm flex-1 min-w-0" @click="openAddLineModal(true)">+ Revenu</button>
+        <button
+          type="button"
+          class="flex-1 min-w-0 basis-0 bg-error text-error-content rounded-lg py-2 text-sm font-semibold active:bg-error/80"
+          @click="openAddLineModal(false)"
+        >+ Dépense</button>
+        <button
+          type="button"
+          class="flex-1 min-w-0 basis-0 bg-success text-success-content rounded-lg py-2 text-sm font-semibold active:bg-success/80"
+          @click="openAddLineModal(true)"
+        >+ Revenu</button>
       </div>
     </div>
 
