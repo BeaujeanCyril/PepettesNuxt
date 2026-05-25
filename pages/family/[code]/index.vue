@@ -1363,11 +1363,14 @@ const addLine = async () => {
 
 const deleteLine = async (lineDef: LineDefinition) => {
   if (!confirm('Supprimer "' + lineDef.name + '" et toutes ses valeurs ?')) return
-  const deletePromises = Object.values(lineDef.amounts).map(a =>
-    $fetch('/api/family/' + code + '/lines/' + a.lineId, { method: 'DELETE' })
-  )
-  await Promise.all(deletePromises)
+  // Suppression complete cote serveur : ligne recurrente + toutes les occurrences
+  // (sinon la ligne recurrente se re-materialise au prochain chargement).
+  await $fetch('/api/family/' + code + '/lines/delete-all', {
+    method: 'POST',
+    body: { name: lineDef.name, isIncome: lineDef.isIncome }
+  })
   lineDefinitions.value = lineDefinitions.value.filter(l => l.id !== lineDef.id)
+  await loadRecurringLines()
 }
 
 onMounted(async () => {
