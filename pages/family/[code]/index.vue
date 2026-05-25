@@ -1257,6 +1257,12 @@ const saveEditLine = async () => {
         method: 'PUT',
         body: { type: editLineNewRecurrence.value }
       }).catch(() => {})
+      // Re-synchroniser : nettoyer les mois hors planning + creer ceux manquants,
+      // a partir du mois courant (les mois passes restent intacts).
+      await $fetch('/api/family/' + code + '/recurring/' + editLineRecurringId.value + '/resync', {
+        method: 'POST',
+        body: { fromYear: selectedYear.value, fromMonth: currentMonth }
+      }).catch(() => {})
     }
   }
 
@@ -1271,6 +1277,8 @@ const saveEditLine = async () => {
 
   editLineModal.value?.close()
   await loadRecurringLines()
+  // Recharge complet pour refleter le nettoyage des mois hors planning
+  await fetchData()
 }
 
 const openAddLineModal = (isIncome: boolean) => {
